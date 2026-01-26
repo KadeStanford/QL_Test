@@ -23,13 +23,8 @@
     // CONFIGURATION
     // ============================================
     
-    // API URL - Automatically uses /api/v1 in production (through reverse proxy)
-    // or localhost:8000 for local development
-    const API_BASE_URL = window.HOSTING_PLATFORM_API_URL || (
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-            ? 'http://localhost:8000/api/v1'
-            : '/api/v1'
-    );
+    // Google Apps Script URL (Free Backend)
+    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbyAaeyCz-NsDIuHPRgqR8a9vc-7-5pOlgfdkuv7kSOw1ohztHXlgoCTAooNjR_r0LEE/exec';
     
     // ============================================
     // DOMAIN DETECTION
@@ -505,33 +500,16 @@
                 additional_fields: extractedData.raw_data
             };
             
-            console.log('[Hosting Platform] Submitting form to:', `${API_BASE_URL}/forms/submit`);
+            console.log('[Hosting Platform] Submitting form to:', API_BASE_URL);
             console.log('[Hosting Platform] Payload:', payload);
             
-            // Attempt to save to Firestore (if configured)
-            // This handles both Global (sites/{domain}/data/submissions) and Local (root/submissions) logic
-            // automatically via the window.siteFirestore helper.
-            if (window.siteFirestore) {
-                try {
-                    console.log('[Hosting Platform] Saving to Firestore via siteFirestore helper...');
-                    // We use 'form_submissions' collection. 
-                    // helper.add() automatically adds _site and timestamps.
-                    await window.siteFirestore.add('form_submissions', {
-                        ...payload,
-                        userAgent: navigator.userAgent,
-                        url: window.location.href
-                    });
-                    console.log('[Hosting Platform] Firestore save successful');
-                } catch (dbError) {
-                    console.error('[Hosting Platform] Firestore save failed (non-blocking):', dbError);
-                }
-            }
-            
-            const response = await fetch(`${API_BASE_URL}/forms/submit`, {
+            // Send to Google Apps Script (Free Backend)
+            // We use text/plain to avoid CORS preflight (OPTIONS) requests which GAS doesn't handle natively
+            const response = await fetch(API_BASE_URL, {
                 method: 'POST',
+                redirect: 'follow',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Content-Type': 'text/plain;charset=utf-8',
                 },
                 body: JSON.stringify(payload)
             });
