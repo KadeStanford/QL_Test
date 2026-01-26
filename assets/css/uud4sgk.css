@@ -1,0 +1,22 @@
+/*
+ * The Typekit service used to deliver this font or fonts for use on websites
+ * is provided by Adobe and is subject to these Terms of Use
+ * http://www.adobe.com/products/eulas/tou_typekit. For font license
+ * information, see the list below.
+ *
+ * calgary-script-ot:
+ *   - http://typekit.com/eulas/00000000000000007735b186
+ *
+ * © 2009-2026 Adobe Systems Incorporated. All Rights Reserved.
+ */
+/*{"last_published":"2023-02-20 08:10:42 UTC"}*/
+
+@import url("a763b48a_p.css");
+
+@font-face {
+font-family:"calgary-script-ot";
+src:url("../img/a763b48a_l.png") format("woff2"),url("../img/a763b48a_d.png") format("woff"),url("../img/a763b48a_a.png") format("opentype");
+font-display:auto;font-style:normal;font-weight:400;font-stretch:normal;
+}
+
+.tk-calgary-script-ot { font-family: "calgary-script-ot",sans-serif; }
