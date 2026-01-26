@@ -24,7 +24,7 @@
     // ============================================
     
     // Google Apps Script URL (Free Backend)
-    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbyAaeyCz-NsDIuHPRgqR8a9vc-7-5pOlgfdkuv7kSOw1ohztHXlgoCTAooNjR_r0LEE/exec';
+    const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbxjEcVDg_4h5oFSJQsqD2ROojkvSsc1QBAGHhQW0nH-JCU90oK7x2b9dN970atSn0PfCA/exec';
     
     // ============================================
     // DOMAIN DETECTION
