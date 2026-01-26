@@ -2,9 +2,11 @@ version: 1
 frontend:
   phases:
     build:
-      commands: []
+      commands:
+        - mkdir www
+        - mv * www/ || true
   artifacts:
-    baseDirectory: .
+    baseDirectory: www
     files:
       - '**/*'
   cache:
