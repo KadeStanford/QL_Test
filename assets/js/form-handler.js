@@ -595,64 +595,70 @@
         // Disable third-party handlers first
         disableThirdPartyFormHandlers();
         
-        // Find all forms that should be handled
-        const formSelectors = [
-            'form.wpforms-form',
-            'form.wpforms-validate',
-            'form.wpcf7-form',
-            'form.gform_wrapper form',
-            'form[data-hosting-platform]',
-            'form.contact-form',
-            'form#contact-form',
-            'form[action*="contact"]'
-        ];
+        console.log('[Hosting Platform] Initializing global form interceptor');
         
-        const forms = document.querySelectorAll(formSelectors.join(', '));
-        
-        forms.forEach(form => {
-            // Remove existing action to prevent default submission
-            form.removeAttribute('action');
+        // GLOBAL CAPTURE LISTENER
+        // We use true (capture phase) to intercept the event at the Document level
+        // BEFORE it travels down to the form element or bubbles up.
+        // This effectively bypasses any handlers attached to the form or document by jQuery/WPForms.
+        document.addEventListener('submit', function(event) {
+            const form = event.target;
+            if (!form || form.tagName !== 'FORM') return;
             
-            // Remove ajax classes that WPForms uses
-            form.classList.remove('wpforms-ajax-form');
+            // List of selectors we want to intercept
+            const formSelectors = [
+                '.wpforms-form',
+                '.wpforms-validate',
+                '.wpcf7-form',
+                '[data-hosting-platform]',
+                '.contact-form',
+                '#contact-form',
+                '[action*="contact"]'
+            ];
             
-            // Mark form as handled to prevent double-handling
-            if (form.dataset.hostingPlatformHandled) {
-                console.log(`[Hosting Platform] Form already handled: ${form.id || 'unnamed'}`);
-                return;
+            let shouldHandle = false;
+            
+            // Check if form matches any selector
+            if (form.matches && formSelectors.some(s => form.matches(s))) {
+                shouldHandle = true;
+            } 
+            // Check complex selectors or parents
+            else if (form.closest('.gform_wrapper')) {
+                shouldHandle = true;
             }
-            form.dataset.hostingPlatformHandled = 'true';
             
-            // Use capture phase to intercept before any other handlers
-            // This prevents WPForms/CF7 from handling the submit first
-            form.addEventListener('submit', handleFormSubmit, { capture: true });
-            
-            // Also add a direct handler as backup
-            form.addEventListener('submit', handleFormSubmit, { capture: false });
-            
-            console.log(`[Hosting Platform] Form handler attached: ${form.id || 'unnamed'} (${detectFormType(form)})`);
-        });
+            if (shouldHandle) {
+                console.log('[Hosting Platform] Intercepted form submission:', form.id || 'unnamed');
+                
+                // Aggressively prevent other handlers
+                event.stopImmediatePropagation();
+                // We don't call preventDefault() here because handleFormSubmit does it, 
+                // but we must call it if handleFormSubmit is async and we want to stop 'submission' immediately.
+                // However, handleFormSubmit handles it.
+                
+                // Remove interfering attributes just in case
+                form.removeAttribute('action');
+                form.classList.remove('wpforms-ajax-form');
+                
+                handleFormSubmit(event);
+            }
+        }, true); // useCapture = true is CRITICAL here
         
-        if (forms.length === 0) {
-            console.log('[Hosting Platform] No compatible forms found on this page');
-        } else {
-            console.log(`[Hosting Platform] Initialized ${forms.length} form(s) for ${SITE_DOMAIN}`);
-        }
+        console.log('[Hosting Platform] Global capture listener active');
     }
     
     // Run initialization
+    init(); // Attach global listener immediately - document always exists
+    
+    // Additional cleanup when DOM is ready
     if (document.readyState === 'loading') {
-        disableThirdPartyFormHandlers(); // Run immediately to catch early scripts
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', disableThirdPartyFormHandlers);
     } else {
         disableThirdPartyFormHandlers();
-        init();
     }
     
-    // Re-run on window load as backup
-    window.addEventListener('load', function() {
-        disableThirdPartyFormHandlers();
-    });
+    // Re-run cleanup on window load
+    window.addEventListener('load', disableThirdPartyFormHandlers);
     
     // Add CSS animation
     const style = document.createElement('style');
