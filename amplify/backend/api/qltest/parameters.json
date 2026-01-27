@@ -1,0 +1,5 @@
+{
+  "AppSyncApiName": "qltest",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false
+}

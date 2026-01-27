@@ -1,0 +1,9 @@
+type ContactSubmission @model @auth(rules: [{ allow: public }]) {
+  id: ID!
+  name: String!
+  email: String!
+  phone: String
+  message: String
+  domain: String
+  createdAt: AWSDateTime
+}

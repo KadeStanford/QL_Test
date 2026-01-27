@@ -119,14 +119,18 @@
     }
     
     function sendToGoogleScript(data, form, submitBtn, spinner) {
-        // Create URL with parameters for JSONP-style request (works around CORS)
+        // Log what we're sending for debugging
+        console.log('Sending form data:', JSON.stringify(data, null, 2));
+        
+        // Create URL with parameters
         const params = new URLSearchParams();
         for (const [key, value] of Object.entries(data)) {
             if (value) params.append(key, value);
         }
         
-        // Use fetch with no-cors mode, but we can't read the response
-        // So we'll also try the redirect method
+        console.log('POST body:', params.toString());
+        
+        // Try fetch first - Google Apps Script should handle CORS if configured correctly
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -136,7 +140,9 @@
             body: params.toString()
         })
         .then(() => {
-            // Since no-cors doesn't let us read the response, assume success
+            console.log('Fetch completed (no-cors mode - cannot verify response)');
+            // Since no-cors doesn't let us read the response, also send via GET as backup
+            sendViaGet(data);
             showSuccess(form, submitBtn, spinner);
         })
         .catch(error => {
@@ -144,6 +150,23 @@
             // Try alternative method
             sendViaImage(data, form, submitBtn, spinner);
         });
+    }
+    
+    function sendViaGet(data) {
+        // Also send via GET request as a backup
+        const params = new URLSearchParams();
+        for (const [key, value] of Object.entries(data)) {
+            if (value) params.append(key, value);
+        }
+        const url = GOOGLE_SCRIPT_URL + '?' + params.toString();
+        console.log('Backup GET request to:', url);
+        
+        // Use a hidden iframe to send GET request
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        setTimeout(() => iframe.remove(), 5000);
     }
     
     function sendViaImage(data, form, submitBtn, spinner) {

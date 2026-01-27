@@ -1,0 +1,22 @@
+{
+  "api": {
+    "qltest": {
+      "dependsOn": [],
+      "output": {
+        "authConfig": {
+          "additionalAuthenticationProviders": [],
+          "defaultAuthentication": {
+            "apiKeyConfig": {
+              "apiKeyExpirationDate": "2027-01-26T22:53:47.509Z",
+              "apiKeyExpirationDays": 365,
+              "description": "contact form"
+            },
+            "authenticationType": "API_KEY"
+          }
+        }
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "AppSync"
+    }
+  }
+}
