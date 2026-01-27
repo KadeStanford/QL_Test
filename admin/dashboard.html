@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Quality Lube Express</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .dashboard-container { max-width: 1000px; margin: 50px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .loading { display: none; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h1">Quality Lube Admin</span>
+    <button class="btn btn-outline-light" id="logout-btn">Logout</button>
+  </div>
+</nav>
+
+<div class="container dashboard-container">
+    <h2 class="mb-4">Pricing Management</h2>
+    
+    <div class="alert alert-info" id="status-msg" style="display:none;"></div>
+
+    <div class="mb-4">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServiceModal">
+            <i class="fas fa-plus"></i> Add New Service
+        </button>
+        <button class="btn btn-warning" id="import-btn">
+            <i class="fas fa-file-import"></i> Import from Live Site
+        </button>
+    </div>
+
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Service Name</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="services-table-body">
+            <!-- Data will be loaded here -->
+        </tbody>
+    </table>
+    <div id="loading-spinner" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal fade" id="addServiceModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Service Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="service-form">
+            <input type="hidden" id="service-id">
+            <div class="mb-3">
+                <label class="form-label">Service Name</label>
+                <input type="text" class="form-control" id="service-name" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Price</label>
+                <input type="text" class="form-control" id="service-price" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="service-category">
+                    <option value="Oil Change">Oil Change</option>
+                    <option value="Diesel">Diesel</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="save-service-btn">Save changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyA2DI7LRK4kR7DZtGRridtmCZYl8F32cLg",
+  authDomain: "qualityexpress-c19f2.firebaseapp.com",
+  projectId: "qualityexpress-c19f2",
+  storageBucket: "qualityexpress-c19f2.firebasestorage.app",
+  messagingSenderId: "201962327491",
+  appId: "1:201962327491:web:342d771b9013d901cc8176",
+  measurementId: "G-HJDBXM5CLX"
+};
+
+// Initialize Firebase
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Auth Guard
+auth.onAuthStateChanged((user) => {
+    if (!user) {
+        window.location.href = '../login.html';
+    } else {
+        loadServices();
+    }
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+    auth.signOut().then(() => window.location.href = '../index.html');
+});
+
+// Load Services
+function loadServices() {
+    document.getElementById('loading-spinner').style.display = 'block';
+    const tbody = document.getElementById('services-table-body');
+    tbody.innerHTML = '';
+
+    db.collection("pricing_services").get().then((querySnapshot) => {
+        document.getElementById('loading-spinner').style.display = 'none';
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            const row = `
+                <tr>
+                    <td>${data.name}</td>
+                    <td>${data.price}</td>
+                    <td>${data.category || 'General'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info me-2" onclick="editService('${doc.id}', '${data.name}', '${data.price}', '${data.category}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteService('${doc.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    });
+}
+
+// Save Service
+document.getElementById('save-service-btn').addEventListener('click', () => {
+    const id = document.getElementById('service-id').value;
+    const name = document.getElementById('service-name').value;
+    const price = document.getElementById('service-price').value;
+    const category = document.getElementById('service-category').value;
+
+    if(id) {
+        db.collection("pricing_services").doc(id).update({
+            name: name,
+            price: price,
+            category: category
+        }).then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('addServiceModal')).hide();
+            loadServices();
+        });
+    } else {
+        db.collection("pricing_services").add({
+            name: name,
+            price: price,
+            category: category
+        }).then(() => {
+            bootstrap.Modal.getInstance(document.getElementById('addServiceModal')).hide();
+            loadServices();
+        });
+    }
+});
+
+// Delete Service
+window.deleteService = (id) => {
+    if(confirm('Are you sure?')) {
+        db.collection("pricing_services").doc(id).delete().then(() => loadServices());
+    }
+};
+
+// Edit Service Helper
+window.editService = (id, name, price, category) => {
+    document.getElementById('service-id').value = id;
+    document.getElementById('service-name').value = name;
+    document.getElementById('service-price').value = price;
+    document.getElementById('service-category').value = category;
+    new bootstrap.Modal(document.getElementById('addServiceModal')).show();
+};
+
+// Import from Live Site (Simple scaper logic)
+document.getElementById('import-btn').addEventListener('click', async () => {
+    if(!confirm('This will attempt to scrape the ../pricing/index.html file and populate the database. Continue?')) return;
+    
+    try {
+        const response = await fetch('../pricing/index.html');
+        const text = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        
+        // Strategy: Find all Tables, assume Row = tr > td(Name) + td(Price)
+        const tables = doc.querySelectorAll('table');
+        let count = 0;
+        const batch = db.batch();
+
+        tables.forEach(table => {
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if(cells.length >= 2) {
+                    const name = cells[0].textContent.trim();
+                    const price = cells[1].textContent.trim();
+                    
+                    if(name && price && !name.includes('Service')) { // Basic filtering
+                        const newRef = db.collection("pricing_services").doc();
+                        batch.set(newRef, { name, price, category: 'Imported' });
+                        count++;
+                    }
+                }
+            });
+        });
+
+        if(count > 0) {
+            await batch.commit();
+            alert(`Successfully imported ${count} services!`);
+            loadServices();
+        } else {
+            alert('No compatible pricing tables found.');
+        }
+
+    } catch (e) {
+        alert('Error importing: ' + e.message);
+    }
+});
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
