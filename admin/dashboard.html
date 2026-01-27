@@ -4,50 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Quality Lube Express</title>
+    <!-- Site Assets -->
+    <link href="../assets/css/main.css" rel="stylesheet"/>
+    <link href="../assets/css/icon.css" rel="stylesheet"/>
+    <link href="../assets/fonts/fontawesome/css/all.min.css" rel="stylesheet">
+    <link href="../assets/css/qualitytirelube.com.css" rel="stylesheet"/>
+    
+    <!-- Admin Specific Assets (Bootstrap for UI components) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .dashboard-container { max-width: 1000px; margin: 50px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        body { background-color: #f5f5f5; font-family: var(--font-body, "Roboto", sans-serif); }
+        .l-header { background: #000; color: #fff; padding: 10px 0; }
+        .l-subheader-h { display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 15px; }
+        .admin-brand { font-size: 20px; font-weight: bold; color: #fff; text-decoration: none; }
+        .dashboard-container { max-width: 1200px; margin: 40px auto; padding: 30px; background: white; border-radius: 4px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
         .loading { display: none; }
+        /* Override Bootstrap conflicts */
+        a { text-decoration: none; }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-dark bg-dark">
-  <div class="container-fluid">
-    <span class="navbar-brand mb-0 h1">Quality Lube Admin</span>
-    <button class="btn btn-outline-light" id="logout-btn">Logout</button>
-  </div>
-</nav>
+<!-- Mock Site Header -->
+<header class="l-header">
+    <div class="l-subheader at_middle">
+        <div class="l-subheader-h">
+            <div class="l-subheader-cell">
+                <a href="../index.html" class="admin-brand">
+                    <img src="../assets/img/logo-01.png" alt="Quality Lube" style="height: 60px;">
+                    <span style="margin-left: 15px; vertical-align: middle;">Admin Portal</span>
+                </a>
+            </div>
+            <div class="l-subheader-cell">
+                 <button class="btn btn-outline-light btn-sm" id="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </div>
+    </div>
+</header>
 
 <div class="container dashboard-container">
-    <h2 class="mb-4">Pricing Management</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 style="margin:0;">Pricing Management</h2>
+        <div>
+            <span class="badge bg-success" id="connection-status">Firebase Connected</span>
+        </div>
+    </div>
     
     <div class="alert alert-info" id="status-msg" style="display:none;"></div>
 
-    <div class="mb-4">
+    <div class="mb-4 d-flex gap-2">
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServiceModal">
             <i class="fas fa-plus"></i> Add New Service
         </button>
-        <button class="btn btn-warning" id="import-btn">
-            <i class="fas fa-file-import"></i> Import from Live Site
+         <button class="btn btn-secondary" onclick="loadServices()">
+            <i class="fas fa-sync"></i> Refresh
         </button>
     </div>
 
-    <table class="table table-striped table-hover">
-        <thead>
-            <tr>
-                <th>Service Name</th>
-                <th>Price</th>
-                <th>Category</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="services-table-body">
-            <!-- Data will be loaded here -->
-        </tbody>
-    </table>
+    <!-- Filter -->
+    <div class="mb-3">
+        <select class="form-select w-auto" id="category-filter" onchange="filterServices()">
+            <option value="All">All Categories</option>
+            <!-- Populated dynamically -->
+        </select>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Service Name</th>
+                    <th>Price</th>
+                    <th>Category</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="services-table-body">
+                <!-- Data will be loaded here -->
+            </tbody>
+        </table>
+    </div>
+
     <div id="loading-spinner" class="text-center my-5">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
@@ -68,17 +105,21 @@
             <input type="hidden" id="service-id">
             <div class="mb-3">
                 <label class="form-label">Service Name</label>
-                <input type="text" class="form-control" id="service-name" required>
+                <input type="text" class="form-control" id="service-name" required placeholder="e.g. Full Synthetic">
             </div>
             <div class="mb-3">
-                <label class="form-label">Price</label>
-                <input type="text" class="form-control" id="service-price" required>
+                <label class="form-label">Price / Description</label>
+                <input type="text" class="form-control" id="service-price" required placeholder="e.g. $89.99">
             </div>
             <div class="mb-3">
                 <label class="form-label">Category</label>
                 <select class="form-select" id="service-category">
                     <option value="Oil Change">Oil Change</option>
-                    <option value="Diesel">Diesel</option>
+                    <option value="Diesel Oil Change">Diesel Oil Change</option>
+                    <option value="Brakes">Brakes</option>
+                    <option value="Tires">Tires</option>
+                    <option value="Wiper Blades">Wiper Blades</option>
+                    <option value="State Inspection">State Inspection</option>
                     <option value="Other">Other</option>
                 </select>
             </div>
@@ -114,6 +155,8 @@ const app = firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+let allServices = [];
+
 // Auth Guard
 auth.onAuthStateChanged((user) => {
     if (!user) {
@@ -132,26 +175,72 @@ function loadServices() {
     document.getElementById('loading-spinner').style.display = 'block';
     const tbody = document.getElementById('services-table-body');
     tbody.innerHTML = '';
-
-    db.collection("pricing_services").get().then((querySnapshot) => {
+    
+    // Debugging: Ensure collection name is consistent
+    db.collection("pricing_services").get()
+    .then((querySnapshot) => {
         document.getElementById('loading-spinner').style.display = 'none';
+        allServices = [];
+        
+        if (querySnapshot.empty) {
+             tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No services found. Importing from website automatically...</td></tr>';
+             importServices(true); // Auto-import if empty
+             return;
+        }
+
         querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            const row = `
-                <tr>
-                    <td>${data.name}</td>
-                    <td>${data.price}</td>
-                    <td>${data.category || 'General'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-info me-2" onclick="editService('${doc.id}', '${data.name}', '${data.price}', '${data.category}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteService('${doc.id}')"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `;
-            tbody.innerHTML += row;
+            allServices.push({ id: doc.id, ...doc.data() });
         });
+        
+        renderTable(allServices);
+        updateCategoryFilter(allServices);
+    })
+    .catch((error) => {
+        console.error("Error getting documents: ", error);
+        document.getElementById('status-msg').innerText = "Error loading data: " + error.message;
+        document.getElementById('status-msg').style.display = "block";
+        document.getElementById('loading-spinner').style.display = 'none';
     });
 }
+
+function renderTable(services) {
+    const tbody = document.getElementById('services-table-body');
+    tbody.innerHTML = '';
+    
+    // Sort by Category then Name
+    services.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+
+    services.forEach(data => {
+        const row = `
+            <tr>
+                <td class="fw-bold">${data.name}</td>
+                <td>${data.price}</td>
+                <td><span class="badge bg-secondary">${data.category || 'General'}</span></td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editService('${data.id}')"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteService('${data.id}')"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+function updateCategoryFilter(services) {
+    const cats = new Set(services.map(s => s.category || 'General'));
+    const select = document.getElementById('category-filter');
+    // Keep 'All'
+    select.innerHTML = '<option value="All">All Categories</option>';
+    cats.forEach(c => {
+        select.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+}
+
+window.filterServices = () => {
+    const cat = document.getElementById('category-filter').value;
+    if(cat === 'All') renderTable(allServices);
+    else renderTable(allServices.filter(s => (s.category || 'General') === cat));
+};
 
 // Save Service
 document.getElementById('save-service-btn').addEventListener('click', () => {
@@ -160,21 +249,15 @@ document.getElementById('save-service-btn').addEventListener('click', () => {
     const price = document.getElementById('service-price').value;
     const category = document.getElementById('service-category').value;
 
+    const data = { name, price, category };
+
     if(id) {
-        db.collection("pricing_services").doc(id).update({
-            name: name,
-            price: price,
-            category: category
-        }).then(() => {
+        db.collection("pricing_services").doc(id).update(data).then(() => {
             bootstrap.Modal.getInstance(document.getElementById('addServiceModal')).hide();
             loadServices();
         });
     } else {
-        db.collection("pricing_services").add({
-            name: name,
-            price: price,
-            category: category
-        }).then(() => {
+        db.collection("pricing_services").add(data).then(() => {
             bootstrap.Modal.getInstance(document.getElementById('addServiceModal')).hide();
             loadServices();
         });
@@ -183,46 +266,67 @@ document.getElementById('save-service-btn').addEventListener('click', () => {
 
 // Delete Service
 window.deleteService = (id) => {
-    if(confirm('Are you sure?')) {
+    if(confirm('Are you sure you want to delete this service?')) {
         db.collection("pricing_services").doc(id).delete().then(() => loadServices());
     }
 };
 
 // Edit Service Helper
-window.editService = (id, name, price, category) => {
-    document.getElementById('service-id').value = id;
-    document.getElementById('service-name').value = name;
-    document.getElementById('service-price').value = price;
-    document.getElementById('service-category').value = category;
-    new bootstrap.Modal(document.getElementById('addServiceModal')).show();
+window.editService = (id) => {
+    const service = allServices.find(s => s.id === id);
+    if(service) {
+        document.getElementById('service-id').value = id;
+        document.getElementById('service-name').value = service.name;
+        document.getElementById('service-price').value = service.price;
+        document.getElementById('service-category').value = service.category || 'Other';
+        new bootstrap.Modal(document.getElementById('addServiceModal')).show();
+    }
 };
 
-// Import from Live Site (Simple scaper logic)
-document.getElementById('import-btn').addEventListener('click', async () => {
-    if(!confirm('This will attempt to scrape the ../pricing/index.html file and populate the database. Continue?')) return;
+// Import Services Logic
+async function importServices(auto = false) {
+    if(!auto && !confirm('This will fetch content from ../pricing/index.html and ADD it to the database. Duplicates might occur. Continue?')) return;
     
+    // Show loading status if it's an auto-import
+    if (auto) {
+         document.getElementById('status-msg').innerText = "First-time setup: Importing current pricing from website...";
+         document.getElementById('status-msg').style.display = "block";
+    }
+
     try {
         const response = await fetch('../pricing/index.html');
+        if (!response.ok) throw new Error('Could not load pricing page.');
+        
         const text = await response.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
         
-        // Strategy: Find all Tables, assume Row = tr > td(Name) + td(Price)
         const tables = doc.querySelectorAll('table');
         let count = 0;
         const batch = db.batch();
 
-        tables.forEach(table => {
+        tables.forEach((table, index) => {
+            let category = "General"; 
+            
+            const tableText = table.textContent.toUpperCase();
+            if(tableText.includes('SYNTHETIC') || tableText.includes('OIL CHANGE')) category = "Oil Change";
+            else if(tableText.includes('BRAKE')) category = "Brakes";
+            else if(tableText.includes('TIRE') || tableText.includes('MOUNT/BALANCE')) category = "Tires";
+            else if(tableText.includes('WIPER')) category = "Wiper Blades";
+            else if(tableText.includes('DIESEL')) category = "Diesel Oil Change";
+
             const rows = table.querySelectorAll('tr');
             rows.forEach(row => {
                 const cells = row.querySelectorAll('td');
-                if(cells.length >= 2) {
-                    const name = cells[0].textContent.trim();
-                    const price = cells[1].textContent.trim();
-                    
-                    if(name && price && !name.includes('Service')) { // Basic filtering
+                if(cells.length >= 1) {
+                    let name = cells[0].textContent.trim();
+                    let price = cells.length > 1 ? cells[1].textContent.trim() : '';
+
+                    name = name.replace(/\s+/g, ' '); 
+
+                    if(name && !name.includes('Service') && name.length < 50) { 
                         const newRef = db.collection("pricing_services").doc();
-                        batch.set(newRef, { name, price, category: 'Imported' });
+                        batch.set(newRef, { name, price, category });
                         count++;
                     }
                 }
@@ -231,16 +335,23 @@ document.getElementById('import-btn').addEventListener('click', async () => {
 
         if(count > 0) {
             await batch.commit();
-            alert(`Successfully imported ${count} services!`);
+            if(auto) {
+                document.getElementById('status-msg').className = "alert alert-success";
+                document.getElementById('status-msg').innerText = `Setup Complete! Imported ${count} services.`;
+                setTimeout(() => document.getElementById('status-msg').style.display='none', 5000);
+            } else {
+                alert(`Successfully imported ${count} services!`);
+            }
             loadServices();
         } else {
-            alert('No compatible pricing tables found.');
+            console.warn('No services found to import.');
         }
 
     } catch (e) {
-        alert('Error importing: ' + e.message);
+        console.error('Error importing:', e);
+        if(!auto) alert('Error importing: ' + e.message);
     }
-});
+}
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
