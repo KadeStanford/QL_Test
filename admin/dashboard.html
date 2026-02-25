@@ -2389,16 +2389,19 @@
       
       // Initialize global filter if needed
       if (typeof window.currentApplicantFilter === 'undefined') {
-        window.currentApplicantFilter = 'All';
+        // Restore from sessionStorage if available
+        window.currentApplicantFilter = sessionStorage.getItem('ql_applicant_btn_filter') || 'All';
       }
 
       // Helper to set filter and refresh
       window.setApplicantFilter = function(filter) {
         window.currentApplicantFilter = filter;
-        // Re-render dashboard to apply changes
-        if (typeof renderDashboard === 'function') renderDashboard();
-        else if (typeof fetchSubmissions === 'function') fetchSubmissions(); // Fallback
-        else location.reload(); // Last resort
+        sessionStorage.setItem('ql_applicant_btn_filter', filter);
+        // Sync the select dropdown to match
+        var selectEl = document.getElementById('applicant-status-filter');
+        if (selectEl) selectEl.value = (filter === 'All') ? '' : filter;
+        // Re-render using the existing renderSubmissions function
+        renderSubmissions();
       };
 
       function renderApplicants(applicants, container) {
@@ -4824,10 +4827,13 @@
               applicantFilterEl.value = savedApplicantFilter;
           }
 
-          // Wire applicant-status-filter to trigger re-render on change
+          // Wire applicant-status-filter to trigger re-render on change and sync with inline buttons
           if (applicantFilterEl) {
               applicantFilterEl.addEventListener('change', function() {
-                  sessionStorage.setItem('ql_applicant_status_filter', this.value);
+                  var val = this.value;
+                  window.currentApplicantFilter = val || 'All';
+                  sessionStorage.setItem('ql_applicant_status_filter', val);
+                  sessionStorage.setItem('ql_applicant_btn_filter', val || 'All');
                   renderSubmissions();
               });
           }
