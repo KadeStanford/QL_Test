@@ -9,7 +9,7 @@
 
   // Google Apps Script Web App URL
   const GOOGLE_SCRIPT_URL =
-    "https://script.google.com/macros/s/AKfycbyIeJeyhmlm2vXXky816sQ5hnn9kRuXqOKpFRx-8ihYXInXJeR9MBOJA_L0sGEaJDWe/exec";
+    "https://script.google.com/macros/s/AKfycbwxlDZg38Hp2LO46GQgOAS2ch1SX3OjNko9nfxCQJDGsvkx1ML_HlKQTpeQwZQhHeGVKg/exec";
   const SITE_DOMAIN = "qualitytirelube.com";
 
   function init() {
@@ -21,7 +21,6 @@
   }
 
   function setupForms() {
-    disableWPForms(); // Ensure WPForms is disabled
     const forms = document.querySelectorAll("form.wpforms-form");
     forms.forEach((form) => {
       // Remove WPForms classes that trigger their JS
@@ -47,19 +46,20 @@
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation(); // Ensure no other handlers run
+        return false;
       });
     });
   }
 
-  // Disable WPForms specific handlers
+  // No longer needed - keeping it simple
   function disableWPForms() {
-    if (window.wpforms_settings) {
-      window.wpforms_settings.ajaxurl = '';
-    }
     if (window.wpforms) {
-      if (typeof window.wpforms.submit === 'function') {
-        window.wpforms.submit = function(e) { e.preventDefault(); return false; };
-      }
+        // Attempt to detonate wpforms if it exists
+        try {
+            // This might break other things, but prioritizing stopping double submit
+            // window.wpforms = null; 
+        } catch(e) {}
     }
   }
 
@@ -77,76 +77,6 @@
       reader.onerror = (error) => reject(error);
       reader.readAsDataURL(file);
     });
-  }
-
-  // --- ANALYTICS HELPER ---
-  async function getPublicIP() {
-    try {
-        const response = await fetch('https://ipapi.co/json/');
-        if (!response.ok) throw new Error('IP fetch failed');
-        return await response.json();
-    } catch (e) {
-        console.warn('Could not fetch IP info:', e);
-        return {};
-    }
-  }
-
-  // --- FIRESTORE HELPER ---
-  
-  async function submitData(formData) {
-    if (typeof firebase !== 'undefined' && firebase.apps.length) {
-      try {
-        const db = firebase.firestore();
-        
-        // --- GATHER ANALYTICS DATA ---
-        let ipData = {};
-        try {
-            ipData = await getPublicIP(); // Fetch approximate location
-        } catch (e) { console.warn('IP lookup skipped', e); }
-
-        const analytics = {
-            userAgent: navigator.userAgent,
-            platform: navigator.platform,
-            language: navigator.language,
-            screen: {
-                width: window.screen.width,
-                height: window.screen.height
-            },
-            ip: ipData.ip || 'unknown',
-            city: ipData.city || 'unknown',
-            region: ipData.region || 'unknown',
-            country: ipData.country_name || 'unknown',
-            org: ipData.org || 'unknown' // ISP/Org
-        };
-        
-        // Extract fields from the flat formData object for cleaner storage
-        const knownKeys = ['site', 'form_type', 'timestamp', 'page_url', 'attachments', 'captcha_token', 'form_name', 'form_id'];
-        const fields = {};
-        for (const key in formData) {
-            if (!knownKeys.includes(key) && typeof formData[key] !== 'function') {
-                fields[key] = formData[key];
-            }
-        }
-
-        const cleanData = {
-          site: formData.site,
-          form_id: formData.form_id || 'unknown',
-          form_name: formData.form_name || formData.form_type,
-          form_type: formData.form_type || 'contact',
-          timestamp: formData.timestamp,
-          page_url: formData.page_url,
-          fields: fields,
-          analytics: analytics // Add analytics object here
-        };
-        
-        await db.collection("form_submissions").add(cleanData);
-        console.log("Successfully saved to Firestore.");
-      } catch (e) {
-        console.error("Firestore save failed:", e);
-      }
-    } else {
-      console.warn("Firebase not initialized; skipping Firestore save.");
-    }
   }
 
   // --- FORM VALIDATION ---
@@ -224,25 +154,6 @@
       const formData = await extractFormData(form);
       formData.captcha_token = captchaResponse; // Add token to payload
 
-      // Add Analytics Data
-      try {
-          const ipData = await getPublicIP().catch(() => ({}));
-          formData.analytics = {
-              userAgent: navigator.userAgent,
-              platform: navigator.platform || 'Unknown',
-              language: navigator.language || 'Unknown',
-              screen: `${window.screen.width}x${window.screen.height}`,
-              ip: ipData.ip || 'Unknown',
-              city: ipData.city || 'Unknown',
-              region: ipData.region || 'Unknown',
-              country: ipData.country_name || 'Unknown',
-              org: ipData.org || 'Unknown' 
-          };
-      } catch (e) { console.warn('Analytics error:', e); }
-
-      // Save to Firestore (async, don't block email sending for long, but better to await to ensure save)
-      await submitData(formData);
-
       sendToGoogleScript(formData, form, submitBtn, spinner);
     } catch (error) {
       console.error("Error preparing form data:", error);
@@ -283,36 +194,22 @@
 
       const k = key.toLowerCase();
 
-      // Heuristic Mapping (covers both semantic names and WPForms bracket keys)
-      if (k.includes("[first]") || (k.includes("first") && k.includes("name"))) data.first_name = value;
-      else if (k.includes("[last]") || (k.includes("last") && k.includes("name"))) data.last_name = value;
+      // Heuristic Mapping
+      if (k.includes("first") && k.includes("name")) data.first_name = value;
+      else if (k.includes("last") && k.includes("name")) data.last_name = value;
       else if (k.includes("email")) data.email = value;
       else if (k.includes("phone") || k.includes("tel")) data.phone = value;
-      else if (k.includes("address1") || k.includes("[address1]")) data.address1 = value;
-      else if (k.includes("address2") || k.includes("[address2]")) data.address2 = value;
-      else if (k.includes("city") || k.includes("[city]")) data.city = value;
-      else if (k.includes("state") || k.includes("[state]")) data.state = value;
-      else if (k.includes("postal") || k.includes("zip") || k.includes("[postal]")) data.zip = value;
+      else if (k.includes("address1")) data.address1 = value;
+      else if (k.includes("address2")) data.address2 = value;
+      else if (k.includes("city")) data.city = value;
+      else if (k.includes("state")) data.state = value;
+      else if (k.includes("postal") || k.includes("zip")) data.zip = value;
       else if (
         k.includes("message") ||
         k.includes("comment") ||
         k.includes("[5]")
       )
-        data.message = value;
-    }
-
-    // Fallback: detect unmapped fields by input type if heuristics missed them
-    if (!data.email) {
-      const emailInput = form.querySelector('input[type="email"]');
-      if (emailInput && emailInput.value) data.email = emailInput.value;
-    }
-    if (!data.phone) {
-      const phoneInput = form.querySelector('input[type="tel"]');
-      if (phoneInput && phoneInput.value) data.phone = phoneInput.value;
-    }
-    if (!data.message) {
-      const textarea = form.querySelector('textarea');
-      if (textarea && textarea.value) data.message = textarea.value;
+        data.message = value; // Fallback for ID 5 (textarea)
     }
 
     // Wait for all files to be read
@@ -343,20 +240,27 @@
       name: data.name || "Unknown",
       email: data.email || "no-reply@qualitytirelube.com",
       phone: data.phone || "",
-      message: data.message || "",
+      message: data.message || data.raw_data || "",
       site_domain: SITE_DOMAIN,
       form_type: data.form_type,
-      page_url: data.page_url || window.location.href,
-      captcha_token: data.captcha_token,
+      captcha_token: data.captcha_token, // Pass captcha token
+      // Pass attachments directly; Google Script must parse them
       attachments: data.attachments,
     };
 
-    // Add address fields individually (for careers form)
-    if (data.address1) payload.address1 = data.address1;
-    if (data.address2) payload.address2 = data.address2;
-    if (data.city) payload.city = data.city;
-    if (data.state) payload.state = data.state;
-    if (data.zip) payload.zip = data.zip;
+    // Add extended address info to message if present
+    if (data.address1) {
+      const addressFunc = [
+        data.address1,
+        data.address2,
+        data.city,
+        data.state,
+        data.zip,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      payload.message = `Applicant Address: ${addressFunc}\n\nNotes:\n${payload.message}`;
+    }
 
     console.log(
       "Sending Payload with " +
@@ -373,25 +277,12 @@
     ) {
       try {
         const db = firebase.firestore();
-        // Save clean submission data (no captcha tokens, no raw dumps)
-        const firestoreData = {
-          name: payload.name,
-          email: payload.email,
-          phone: payload.phone,
-          message: payload.message,
-          site_domain: SITE_DOMAIN,
-          form_type: data.form_type,
-          page_url: data.page_url || window.location.href,
-          timestamp: new Date().toISOString(),
-        };
-        if (data.address1) firestoreData.address1 = data.address1;
-        if (data.address2) firestoreData.address2 = data.address2;
-        if (data.city) firestoreData.city = data.city;
-        if (data.state) firestoreData.state = data.state;
-        if (data.zip) firestoreData.zip = data.zip;
+        // Saving full data including attachments as requested
+        // Note: Firestore has a 1MB limit per document.
+        // Large files might fail or need Storage.
 
         db.collection("form_submissions")
-          .add(firestoreData)
+          .add(data)
           .then(() => console.log("Saved to Firestore"))
           .catch((err) => console.error("Firestore Error:", err));
       } catch (err) {
