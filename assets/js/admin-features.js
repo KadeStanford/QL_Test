@@ -140,8 +140,9 @@ window.viewGenericSubmission = function(id) {
     const hiddenKeys = new Set([
         'h-captcha-response', 'g-recaptcha-response', 'captcha', 'captchaToken',
         '_token', '_wp_http_referer', 'action', 'nonce',
-        'userAgent', 'ip', 'org', 'screen', 'language',
+        'userAgent', 'user_agent', 'ip', 'org', 'screen', 'language',
         'country', 'city', 'region', 'platform', 'timezone',
+        'deviceType', 'device_type',
         'sessionId', 'visitorId', 'fingerprintId', 'id', 'read', 'archived'
     ]);
     function isTokenVal(v) {
@@ -179,12 +180,10 @@ window.viewGenericSubmission = function(id) {
     if (typeof parseDeviceInfo === 'function') {
         const di = parseDeviceInfo(sub);
         if (di) {
-            html += `<tr><td class="fw-bold">Device</td><td><i class="${di.icon} me-1"></i>${di.device}</td></tr>`;
-            html += `<tr><td class="fw-bold">Browser</td><td><i class="fas fa-globe me-1"></i>${di.browser}</td></tr>`;
+            if (di.device && di.device !== 'Unknown') html += `<tr><td class="fw-bold">Device</td><td><i class="${di.icon} me-1"></i>${di.device}</td></tr>`;
+            if (di.browser && di.browser !== 'Unknown') html += `<tr><td class="fw-bold">Browser</td><td><i class="fas fa-globe me-1"></i>${di.browser}</td></tr>`;
+            if (di.location) html += `<tr><td class="fw-bold">Location</td><td><i class="fas fa-map-marker-alt me-1"></i>${di.location}</td></tr>`;
         }
-    }
-    if (sub.city || sub.region) {
-        html += `<tr><td class="fw-bold">Location</td><td><i class="fas fa-map-marker-alt me-1"></i>${[sub.city, sub.region, sub.country].filter(Boolean).join(', ')}</td></tr>`;
     }
     
     tbody.innerHTML = html;

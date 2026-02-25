@@ -2570,8 +2570,9 @@
 
                 ${(() => { const di = parseDeviceInfo(sub); return di ? `
                 <div class="d-flex flex-wrap gap-2 mt-2" style="font-size: 12px;">
-                  <span class="badge bg-light text-dark border"><i class="${di.icon} me-1"></i>${escapeHtml(di.device)}</span>
-                  <span class="badge bg-light text-dark border"><i class="fas fa-globe me-1"></i>${escapeHtml(di.browser)}</span>
+                  ${di.device && di.device !== 'Unknown' ? `<span class="badge bg-light text-dark border"><i class="${di.icon} me-1"></i>${escapeHtml(di.device)}</span>` : ''}
+                  ${di.browser && di.browser !== 'Unknown' ? `<span class="badge bg-light text-dark border"><i class="fas fa-globe me-1"></i>${escapeHtml(di.browser)}</span>` : ''}
+                  ${di.location ? `<span class="badge bg-light text-dark border"><i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(di.location)}</span>` : ''}
                 </div>` : ''; })()}
                 
                 ${message ? `<div class="submission-message">${escapeHtml(message.length > 200 ? message.substring(0, 200) + '...' : message)}</div>` : ''}
@@ -2793,10 +2794,15 @@
       }
 
       // Parse device type/model and browser from analytics data
+      // Checks multiple possible locations for analytics fields
       function parseDeviceInfo(sub) {
-        const ua = sub.userAgent || '';
-        const platform = sub.platform || '';
-        if (!ua && !platform) return null;
+        const f = sub.fields || {};
+        const ua = sub.userAgent || sub.user_agent || f.userAgent || f.user_agent || '';
+        const platform = sub.platform || f.platform || sub.deviceType || sub.device_type || f.deviceType || '';
+        const city = sub.city || f.city || '';
+        const region = sub.region || f.region || sub.state || f.state || '';
+        const country = sub.country || f.country || '';
+        if (!ua && !platform && !city) return null;
 
         // Detect browser
         let browser = 'Unknown';
@@ -2840,7 +2846,16 @@
         if (/iPhone|Android|Mobile/i.test(ua)) icon = 'fas fa-mobile-alt';
         else if (/iPad|Tablet/i.test(ua)) icon = 'fas fa-tablet-alt';
 
-        return { device, browser, icon };
+        // Build location string
+        let location = '';
+        if (city && region) location = city + ', ' + region;
+        else if (city) location = city;
+        else if (region) location = region;
+        if (country && country !== 'United States' && country !== 'US') {
+          location = location ? location + ', ' + country : country;
+        }
+
+        return { device, browser, icon, location };
       }
 
       // Render individual submission card
@@ -2901,8 +2916,9 @@
 
             ${(() => { const di = parseDeviceInfo(sub); return di ? `
             <div class="d-flex flex-wrap gap-2 mt-2" style="font-size: 12px;">
-              <span class="badge bg-light text-dark border"><i class="${di.icon} me-1"></i>${escapeHtml(di.device)}</span>
-              <span class="badge bg-light text-dark border"><i class="fas fa-globe me-1"></i>${escapeHtml(di.browser)}</span>
+              ${di.device && di.device !== 'Unknown' ? `<span class="badge bg-light text-dark border"><i class="${di.icon} me-1"></i>${escapeHtml(di.device)}</span>` : ''}
+              ${di.browser && di.browser !== 'Unknown' ? `<span class="badge bg-light text-dark border"><i class="fas fa-globe me-1"></i>${escapeHtml(di.browser)}</span>` : ''}
+              ${di.location ? `<span class="badge bg-light text-dark border"><i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(di.location)}</span>` : ''}
             </div>` : ''; })()}
             
             ${message ? `<div class="submission-message">${escapeHtml(message.length > 200 ? message.substring(0, 200) + '...' : message)}</div>` : ''}
@@ -2987,8 +3003,9 @@
           'id', 'read', 'archived', 'applicantStatus',
           'h-captcha-response', 'g-recaptcha-response', 'captcha', 'captchaToken',
           '_token', '_wp_http_referer', 'action', 'nonce',
-          'userAgent', 'ip', 'org', 'screen', 'language',
+          'userAgent', 'user_agent', 'ip', 'org', 'screen', 'language',
           'country', 'city', 'region', 'platform', 'timezone',
+          'deviceType', 'device_type',
           'sessionId', 'visitorId', 'fingerprintId',
           'wpforms[id]', 'wpforms[author]', 'wpforms[post_id]'
         ]);
@@ -3074,11 +3091,11 @@
             </tr>
           `);
         }
-        if (sub.city || sub.region) {
+        if (di && di.location) {
           rows.push(`
             <tr>
               <th style="width:180px;background:#f9f9f9;">Location</th>
-              <td><i class="fas fa-map-marker-alt me-1"></i>${escapeHtml([sub.city, sub.region, sub.country].filter(Boolean).join(', '))}</td>
+              <td><i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(di.location)}</td>
             </tr>
           `);
         }
