@@ -2186,6 +2186,13 @@
       // Merge visitor session analytics data onto a form submission
       function mergeSessionData(sub) {
         if (!sessionsLoaded || !Object.keys(visitorSessionsCache).length) return;
+        
+        // Check if submission already has analytics data (nested or top-level)
+        const a = sub.analytics || {};
+        const subIp = sub.ip || a.ip || '';
+        // If we already have a userAgent from any source, skip visitor_sessions merge
+        if (sub.userAgent || a.userAgent) return;
+
         let session = null;
 
         // 1. Match by sessionId stored on the submission
@@ -2194,11 +2201,11 @@
         }
 
         // 2. Fallback: match by IP + timestamp proximity (within 24h)
-        if (!session && sub.ip && sub.ip !== 'unknown') {
+        if (!session && subIp && subIp !== 'unknown') {
           const subTime = new Date(sub.timestamp || sub.date || 0).getTime();
           let bestMatch = null, bestDiff = Infinity;
           for (const [sid, s] of Object.entries(visitorSessionsCache)) {
-            if (s.ip && s.ip === sub.ip) {
+            if (s.ip && s.ip === subIp) {
               const sTime = s.firstSeen && s.firstSeen.toDate ? s.firstSeen.toDate().getTime() : new Date(s.firstSeen || 0).getTime();
               const diff = Math.abs(subTime - sTime);
               if (diff < 24 * 60 * 60 * 1000 && diff < bestDiff) {
@@ -2212,7 +2219,7 @@
 
         if (!session) return;
 
-        // Merge analytics fields (don't overwrite existing values)
+        // Merge analytics fields onto top level (don't overwrite existing values)
         if (!sub.userAgent && session.userAgent) sub.userAgent = session.userAgent;
         if (!sub.platform && session.platform) sub.platform = session.platform;
         if (!sub.deviceType && session.deviceType) sub.deviceType = session.deviceType;
@@ -2222,7 +2229,7 @@
           if (!sub.screen) sub.screen = screenStr;
           if (!sub.screenResolution) sub.screenResolution = screenStr;
         }
-        // Analytics geo (always store as analytics_ prefix so form field city/state don't conflict)
+        // Analytics geo
         const sCi = (session.city && session.city !== 'unknown') ? session.city : '';
         const sRe = (session.region && session.region !== 'unknown') ? session.region : '';
         const sCo = (session.country && session.country !== 'unknown') ? session.country : '';
@@ -2880,19 +2887,22 @@
       // Checks multiple possible locations for analytics fields
       function parseDeviceInfo(sub) {
         const f = sub.fields || {};
-        const ua = sub.userAgent || sub.user_agent || f.userAgent || f.user_agent || '';
-        const platform = sub.platform || f.platform || '';
-        const deviceType = sub.deviceType || sub.device_type || f.deviceType || '';
-        const vendor = sub.vendor || f.vendor || '';
+        // Analytics data may be nested inside sub.analytics map or sub.fields.analytics map
+        const a = sub.analytics || {};
+        const fa = f.analytics || {};
+        const ua = sub.userAgent || sub.user_agent || a.userAgent || a.user_agent || f.userAgent || f.user_agent || fa.userAgent || fa.user_agent || '';
+        const platform = sub.platform || a.platform || f.platform || fa.platform || '';
+        const deviceType = sub.deviceType || sub.device_type || a.deviceType || a.device_type || f.deviceType || fa.deviceType || '';
+        const vendor = sub.vendor || a.vendor || f.vendor || fa.vendor || '';
         // Prefer analytics geo over form-field geo (form city is applicant's address, not their location)
-        const rawCity = sub.analytics_city || sub.city || f.city || '';
-        const rawRegion = sub.analytics_region || sub.region || f.region || sub.state || f.state || '';
-        const rawCountry = sub.analytics_country || sub.country || f.country || '';
+        const rawCity = sub.analytics_city || a.city || sub.city || fa.city || f.city || '';
+        const rawRegion = sub.analytics_region || a.region || sub.region || fa.region || f.region || sub.state || f.state || '';
+        const rawCountry = sub.analytics_country || a.country || sub.country || fa.country || f.country || '';
         const city = (rawCity && rawCity !== 'unknown') ? rawCity : '';
         const region = (rawRegion && rawRegion !== 'unknown') ? rawRegion : '';
         const country = (rawCountry && rawCountry !== 'unknown') ? rawCountry : '';
-        // Handle screen as string or object
-        let screenRes = sub.screenResolution || sub.screen || f.screenResolution || f.screen || '';
+        // Handle screen as string or object — check all nesting locations
+        let screenRes = sub.screenResolution || sub.screen || a.screen || f.screenResolution || f.screen || fa.screen || '';
         if (typeof screenRes === 'object' && screenRes.width) screenRes = screenRes.width + 'x' + screenRes.height;
         if (!ua && !platform && !deviceType && !city) return null;
 
@@ -3164,7 +3174,7 @@
           'deviceType', 'device_type', 'vendor',
           'screenResolution', 'windowSize', 'referrer',
           'sessionId', 'visitorId', 'fingerprintId',
-          'analytics_city', 'analytics_region', 'analytics_country',
+          'analytics_city', 'analytics_region', 'analytics_country', 'analytics',
           'wpforms[id]', 'wpforms[author]', 'wpforms[post_id]'
         ]);
 
