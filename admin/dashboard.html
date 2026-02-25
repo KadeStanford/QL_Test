@@ -2255,21 +2255,16 @@
             allSubmissions = [];
             snapshot.forEach((doc) => {
               const sub = { id: doc.id, ...doc.data() };
+              // Normalize: flatten fields.* to top level so ghost filter,
+              // card rendering, and search can find name/email/phone/message
+              if (sub.fields && typeof sub.fields === 'object') {
+                for (const [key, val] of Object.entries(sub.fields)) {
+                  if (key === 'analytics') continue; // keep analytics map separate
+                  if (!(key in sub)) sub[key] = val;
+                }
+              }
               mergeSessionData(sub);
               allSubmissions.push(sub);
-            });
-            // DEBUG: Log analytics data for first 3 submissions
-            allSubmissions.slice(0, 3).forEach((sub, i) => {
-              console.log(`[DEBUG] Sub ${i} (${sub.id}):`, {
-                topLevel_userAgent: sub.userAgent,
-                topLevel_platform: sub.platform,
-                topLevel_screen: sub.screen,
-                topLevel_ip: sub.ip,
-                topLevel_analytics_city: sub.analytics_city,
-                nested_analytics: sub.analytics,
-                fields: sub.fields ? Object.keys(sub.fields) : 'no fields',
-                parseResult: parseDeviceInfo(sub)
-              });
             });
             
             // Sort by timestamp/date descending (client-side)
