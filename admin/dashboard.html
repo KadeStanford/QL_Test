@@ -4803,12 +4803,48 @@
         `);
       }
 
-      // Tab Listener for Analytics
+      // Tab Listener for Analytics + Tab/Filter Persistence
       document.addEventListener('DOMContentLoaded', function() {
           var triggerTabList = [].slice.call(document.querySelectorAll('button[data-bs-toggle="tab"], a[data-bs-toggle="tab"]'))
+
+          // Restore saved tab from sessionStorage
+          var savedTab = sessionStorage.getItem('ql_dashboard_active_tab');
+          if (savedTab) {
+              var savedTabEl = document.querySelector('a[href="' + savedTab + '"]');
+              if (savedTabEl) {
+                  var bsTab = new bootstrap.Tab(savedTabEl);
+                  bsTab.show();
+              }
+          }
+
+          // Restore saved applicant filter
+          var savedApplicantFilter = sessionStorage.getItem('ql_applicant_status_filter');
+          var applicantFilterEl = document.getElementById('applicant-status-filter');
+          if (savedApplicantFilter && applicantFilterEl) {
+              applicantFilterEl.value = savedApplicantFilter;
+          }
+
+          // Wire applicant-status-filter to trigger re-render on change
+          if (applicantFilterEl) {
+              applicantFilterEl.addEventListener('change', function() {
+                  sessionStorage.setItem('ql_applicant_status_filter', this.value);
+                  renderSubmissions();
+              });
+          }
+
+          // Check if Analytics is the initial active tab
+          var activeTab = document.querySelector('.nav-link.active');
+          if (activeTab && (activeTab.getAttribute('href') === '#analytics-tab' || activeTab.dataset.bsTarget === '#analytics-tab')) {
+              if (typeof initRealAnalytics === 'function') {
+                  setTimeout(initRealAnalytics, 500);
+              }
+          }
+
           triggerTabList.forEach(function (triggerEl) {
             triggerEl.addEventListener('shown.bs.tab', function (event) {
-              const targetUrl = event.target.getAttribute('href');
+              var targetUrl = event.target.getAttribute('href') || event.target.dataset.bsTarget;
+              // Save active tab to sessionStorage
+              sessionStorage.setItem('ql_dashboard_active_tab', targetUrl);
               if (targetUrl === '#analytics-tab') {
                   if (typeof initRealAnalytics === 'function') {
                       initRealAnalytics();
