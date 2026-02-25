@@ -168,7 +168,25 @@
       timestamp: new Date().toISOString(),
       page_url: window.location.href,
       attachments: [], // Array to hold file objects
+      // Device & browser analytics
+      userAgent: navigator.userAgent || '',
+      platform: navigator.platform || '',
+      screen: window.screen.width + 'x' + window.screen.height,
+      language: navigator.language || ''
     };
+
+    // Attach cached IP/location data from tracking session
+    try {
+      const cachedIP = localStorage.getItem('analytics_ip_data');
+      if (cachedIP) {
+        const ipInfo = JSON.parse(cachedIP);
+        data.ip = ipInfo.ip || '';
+        data.city = ipInfo.city || '';
+        data.region = ipInfo.region || '';
+        data.country = ipInfo.country_name || '';
+        data.org = ipInfo.org || '';
+      }
+    } catch(e) { /* ignore parse errors */ }
 
     if (form.getAttribute("data-form-name")) {
       data.form_type = form.getAttribute("data-form-name").toLowerCase();
