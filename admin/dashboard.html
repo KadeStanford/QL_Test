@@ -2445,6 +2445,10 @@
       function renderSubmissions() {
         const container = document.getElementById('submissions-list');
         const applicantContainer = document.getElementById('applicants-list');
+
+        // Preserve archive collapse open state before DOM rebuild
+        const archiveEl = document.getElementById('archivedSubmissionsCollapse');
+        const wasArchiveOpen = archiveEl && archiveEl.classList.contains('show');
         
         container.innerHTML = '';
         if (applicantContainer) applicantContainer.innerHTML = '';
@@ -2558,6 +2562,18 @@
                 </div>
             `;
             container.insertAdjacentHTML('beforeend', archiveHtml);
+            // Restore archive open state if it was open before re-render
+            if (wasArchiveOpen) {
+                const newCollapseEl = document.getElementById('archivedSubmissionsCollapse');
+                if (newCollapseEl) {
+                    newCollapseEl.classList.add('show');
+                    const toggleBtn = newCollapseEl.previousElementSibling || container.querySelector('[data-bs-target="#archivedSubmissionsCollapse"]');
+                    if (toggleBtn) {
+                        toggleBtn.classList.remove('collapsed');
+                        toggleBtn.setAttribute('aria-expanded', 'true');
+                    }
+                }
+            }
         }
 
         // Render Applicants
