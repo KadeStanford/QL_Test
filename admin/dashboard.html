@@ -1451,6 +1451,11 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="tab" href="#customer-index-tab">
+            <i class="fas fa-users me-2"></i>Customer Index
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link" data-bs-toggle="tab" href="#analytics-tab">
             <i class="fas fa-chart-line me-2"></i>Analytics
           </a>
@@ -1671,6 +1676,48 @@
                 <tbody id="services-table-body">
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Customer Index Tab -->
+        <div class="tab-pane fade" id="customer-index-tab">
+          <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+              <h5 class="mb-0 text-primary"><i class="fas fa-users me-2"></i>Customer Database</h5>
+              <div class="d-flex gap-2">
+                 <button class="btn btn-outline-secondary btn-sm" onclick="exportCustomersCSV()">
+                    <i class="fas fa-file-csv me-1"></i> Export CSV
+                 </button>
+                 <div class="input-group input-group-sm w-auto">
+                    <span class="input-group-text bg-light"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="customer-search" placeholder="Search name, email, phone...">
+                 </div>
+              </div>
+            </div>
+            <div class="card-body p-0">
+               <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0" id="customer-table">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 25%;">Name</th>
+                        <th style="width: 30%;">Contact Info</th>
+                        <th style="width: 15%;">Last Activity</th>
+                        <th style="width: 10%;">Count</th>
+                        <th style="width: 20%;" class="text-end">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="customer-list-body">
+                      <tr><td colspan="5" class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Loading customers...</td></tr>
+                    </tbody>
+                  </table>
+               </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <small class="text-muted" id="customer-count-display">Showing 0 customers</small>
+                <nav aria-label="Customer pagination">
+                  <ul class="pagination pagination-sm mb-0" id="customer-pagination"></ul>
+                </nav>
             </div>
           </div>
         </div>
@@ -2139,6 +2186,7 @@
             
             updateStats();
             renderSubmissions();
+            if (typeof updateCustomerIndex === 'function') updateCustomerIndex();
           }, (error) => {
             console.error('Error listening to submissions:', error);
             document.getElementById('submissions-list').innerHTML = `
@@ -4860,5 +4908,6 @@
           })
       });
     </script>
+    <script src="../assets/js/admin-features.js"></script>
   </body>
 </html>
