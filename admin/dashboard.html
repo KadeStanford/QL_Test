@@ -2982,23 +2982,112 @@
         // Mark as read
         markAsRead(id);
 
+        // Keys to completely hide (tokens, captcha, internal IDs, raw analytics)
+        const hiddenKeys = new Set([
+          'id', 'read', 'archived', 'applicantStatus',
+          'h-captcha-response', 'g-recaptcha-response', 'captcha', 'captchaToken',
+          '_token', '_wp_http_referer', 'action', 'nonce',
+          'userAgent', 'ip', 'org', 'screen', 'language',
+          'country', 'city', 'region', 'platform', 'timezone',
+          'sessionId', 'visitorId', 'fingerprintId',
+          'wpforms[id]', 'wpforms[author]', 'wpforms[post_id]'
+        ]);
+
+        // Friendly labels for known keys
+        const labelMap = {
+          'First': 'First Name', 'Last': 'Last Name',
+          'first_name': 'First Name', 'last_name': 'Last Name',
+          'name': 'Name', 'email': 'Email', 'phone': 'Phone',
+          'message': 'Message', 'comments': 'Comments',
+          'Your Message': 'Message', 'Tell Us About Yourself?': 'About Themselves',
+          'vehicle': 'Vehicle', 'Vehicle': 'Vehicle',
+          'form_name': 'Form Type', 'form_type': 'Form Type',
+          'page_title': 'Page', 'page_url': 'Page URL',
+          'url_referer': 'Referrer', 'url_referrer': 'Referrer',
+          'created_at': 'Submitted', 'timestamp': 'Submitted',
+          'submitted_at': 'Submitted', 'date': 'Date',
+          'fields': 'Form Fields'
+        };
+
+        function formatKey(key) {
+          if (key.startsWith('wpforms[fields]')) {
+            const parts = key.match(/\[([^\]]+)\]/g);
+            if (parts) return 'Field ' + parts.map(p => p.replace(/[\[\]]/g, '')).join(' - ');
+          }
+          return labelMap[key] || key.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function isToken(val) {
+          if (typeof val !== 'string') return false;
+          if (val.length > 80 && !val.includes(' ')) return true;
+          if (val.length > 60 && /^[A-Za-z0-9+/=_.-]+$/.test(val)) return true;
+          return false;
+        }
+
+        function formatValue(key, value) {
+          if (value === null || value === undefined || value === '') return '<span class="text-muted">—</span>';
+          if (value && typeof value === 'object' && typeof value.toDate === 'function') {
+            return value.toDate().toLocaleDateString('en-US', {
+              weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+              hour: 'numeric', minute: '2-digit'
+            });
+          }
+          if (key === 'fields' && typeof value === 'object') {
+            return Object.entries(value)
+              .filter(([k, v]) => v && !isToken(String(v)))
+              .map(([k, v]) => `<strong>${escapeHtml(formatKey(k))}:</strong> ${escapeHtml(String(v))}`)
+              .join('<br>');
+          }
+          if (typeof value === 'object') {
+            try { return '<pre style="margin:0;font-size:12px;white-space:pre-wrap;">' + escapeHtml(JSON.stringify(value, null, 2)) + '</pre>'; }
+            catch(e) { return String(value); }
+          }
+          return escapeHtml(String(value));
+        }
+
+        const rows = Object.entries(sub)
+          .filter(([key, value]) => {
+            if (hiddenKeys.has(key)) return false;
+            if (key.startsWith('wpforms[') && !key.startsWith('wpforms[fields]')) return false;
+            if (typeof value === 'string' && isToken(value)) return false;
+            if (value === null || value === undefined || value === '') return false;
+            if (typeof value === 'boolean') return false;
+            return true;
+          })
+          .map(([key, value]) => `
+            <tr>
+              <th style="width:180px;background:#f9f9f9;vertical-align:top;">${escapeHtml(formatKey(key))}</th>
+              <td>${formatValue(key, value)}</td>
+            </tr>
+          `);
+
+        const di = parseDeviceInfo(sub);
+        if (di) {
+          rows.push(`
+            <tr>
+              <th style="width:180px;background:#f9f9f9;">Device</th>
+              <td><i class="${di.icon} me-1"></i>${escapeHtml(di.device)}</td>
+            </tr>
+            <tr>
+              <th style="width:180px;background:#f9f9f9;">Browser</th>
+              <td><i class="fas fa-globe me-1"></i>${escapeHtml(di.browser)}</td>
+            </tr>
+          `);
+        }
+        if (sub.city || sub.region) {
+          rows.push(`
+            <tr>
+              <th style="width:180px;background:#f9f9f9;">Location</th>
+              <td><i class="fas fa-map-marker-alt me-1"></i>${escapeHtml([sub.city, sub.region, sub.country].filter(Boolean).join(', '))}</td>
+            </tr>
+          `);
+        }
+
         const content = document.getElementById('details-content');
         content.innerHTML = `
-          <table class="table table-bordered">
+          <table class="table table-bordered mb-0">
             <tbody>
-              ${Object.entries(sub).map(([key, value]) => {
-                if (key === 'id') return '';
-                let displayValue = value;
-                if (typeof value === 'object') {
-                  displayValue = '<pre style="margin:0;font-size:12px;white-space:pre-wrap;">' + JSON.stringify(value, null, 2) + '</pre>';
-                }
-                return `
-                  <tr>
-                    <th style="width:200px;background:#f9f9f9;">${escapeHtml(key)}</th>
-                    <td>${displayValue}</td>
-                  </tr>
-                `;
-              }).join('')}
+              ${rows.join('')}
             </tbody>
           </table>
         `;

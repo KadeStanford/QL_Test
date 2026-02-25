@@ -135,20 +135,57 @@ window.viewGenericSubmission = function(id) {
     
     const tbody = document.getElementById('gen-sub-fields');
     let html = '';
-    
+
+    // Keys and values to hide
+    const hiddenKeys = new Set([
+        'h-captcha-response', 'g-recaptcha-response', 'captcha', 'captchaToken',
+        '_token', '_wp_http_referer', 'action', 'nonce',
+        'userAgent', 'ip', 'org', 'screen', 'language',
+        'country', 'city', 'region', 'platform', 'timezone',
+        'sessionId', 'visitorId', 'fingerprintId', 'id', 'read', 'archived'
+    ]);
+    function isTokenVal(v) {
+        if (typeof v !== 'string') return false;
+        if (v.length > 80 && !v.includes(' ')) return true;
+        if (v.length > 60 && /^[A-Za-z0-9+/=_.-]+$/.test(v)) return true;
+        return false;
+    }
+    const friendlyLabel = {
+        'First': 'First Name', 'Last': 'Last Name', 'Your Message': 'Message',
+        'Tell Us About Yourself?': 'About Themselves', 'Email': 'Email', 'Phone': 'Phone',
+        'Vehicle': 'Vehicle', 'url_referer': 'Referrer', 'page_title': 'Page',
+        'page_url': 'Page URL', 'form_name': 'Form Type'
+    };
+    function cleanLabel(k) { return friendlyLabel[k] || k.replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
+
     // Flatten fields
     const f = sub.fields || {};
     for (const [key, val] of Object.entries(f)) {
+        if (hiddenKeys.has(key) || isTokenVal(String(val))) continue;
         let displayVal = val;
         if (typeof val === 'object') {
             displayVal = JSON.stringify(val).replace(/"/g, '').replace(/{/g, '').replace(/}/g, '').replace(/,/g, ', ');
         }
-        html += `<tr><td class="fw-bold">${key}</td><td>${displayVal}</td></tr>`;
+        if (!displayVal && displayVal !== 0) continue;
+        html += `<tr><td class="fw-bold">${cleanLabel(key)}</td><td>${displayVal}</td></tr>`;
     }
     
     // Add implicit fields if not in 'fields'
     if (!f.email && sub.email) html += `<tr><td class="fw-bold">Email</td><td>${sub.email}</td></tr>`;
     if (!f.phone && sub.phone) html += `<tr><td class="fw-bold">Phone</td><td>${sub.phone}</td></tr>`;
+    if (sub.message && !f.Message && !f['Your Message']) html += `<tr><td class="fw-bold">Message</td><td>${sub.message}</td></tr>`;
+    
+    // Add device/browser if analytics exist
+    if (typeof parseDeviceInfo === 'function') {
+        const di = parseDeviceInfo(sub);
+        if (di) {
+            html += `<tr><td class="fw-bold">Device</td><td><i class="${di.icon} me-1"></i>${di.device}</td></tr>`;
+            html += `<tr><td class="fw-bold">Browser</td><td><i class="fas fa-globe me-1"></i>${di.browser}</td></tr>`;
+        }
+    }
+    if (sub.city || sub.region) {
+        html += `<tr><td class="fw-bold">Location</td><td><i class="fas fa-map-marker-alt me-1"></i>${[sub.city, sub.region, sub.country].filter(Boolean).join(', ')}</td></tr>`;
+    }
     
     tbody.innerHTML = html;
     
