@@ -352,6 +352,10 @@
         margin-bottom: 15px;
         color: #ddd;
       }
+
+      /* Pipeline custom colors */
+      .bg-purple { background-color: #6f42c1 !important; }
+      .bg-purple.text-white { color: #fff !important; }
       
       /* Form Switch Toggles */
       .form-check.form-switch {
@@ -1563,16 +1567,44 @@
 
         <!-- Applicants Tab -->
         <div class="tab-pane fade" id="applicants-tab">
+          <!-- Pipeline Metrics -->
+          <div class="row g-2 mb-3" id="pipeline-metrics">
+            <div class="col-6 col-md-2"><div class="card text-center p-2"><div class="fw-bold fs-5" id="metric-applied">0</div><small class="text-muted">Applied</small></div></div>
+            <div class="col-6 col-md-2"><div class="card text-center p-2"><div class="fw-bold fs-5" id="metric-interview-rate">0%</div><small class="text-muted">Interview Show</small></div></div>
+            <div class="col-6 col-md-2"><div class="card text-center p-2"><div class="fw-bold fs-5" id="metric-offer-rate">0%</div><small class="text-muted">Offer Accept</small></div></div>
+            <div class="col-6 col-md-2"><div class="card text-center p-2"><div class="fw-bold fs-5" id="metric-hired">0</div><small class="text-muted">Hired</small></div></div>
+            <div class="col-6 col-md-2"><div class="card text-center p-2"><div class="fw-bold fs-5" id="metric-conversion">0%</div><small class="text-muted">Applied→Hire</small></div></div>
+            <div class="col-6 col-md-2"><div class="card text-center p-2"><div class="fw-bold fs-5" id="metric-contact-rate">0%</div><small class="text-muted">Contact Rate</small></div></div>
+          </div>
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4>Career Applications</h4>
+            <h4>Hiring Pipeline</h4>
             <div class="d-flex gap-2">
-               <select id="applicant-status-filter" class="form-select form-select-sm" style="width: auto;">
+               <select id="applicant-position-filter" class="form-select form-select-sm" style="width: auto;" onchange="renderSubmissions()">
+                 <option value="">All Positions</option>
+                 <option value="Lube Technician">Lube Technician</option>
+                 <option value="Automotive Technician">Automotive Technician</option>
+                 <option value="Service Advisor">Service Advisor</option>
+                 <option value="Store Manager">Store Manager</option>
+                 <option value="General Manager">General Manager</option>
+               </select>
+               <select id="applicant-status-filter" class="form-select form-select-sm" style="width: auto;" onchange="renderSubmissions()">
                  <option value="">All Statuses</option>
-                 <option value="New">New</option>
-                 <option value="Interested">Interested</option>
-                 <option value="Interviewing">Interviewing</option>
+                 <option value="Applied">Applied</option>
+                 <option value="Contact Attempted">Contact Attempted</option>
+                 <option value="Contact Made">Contact Made</option>
+                 <option value="Interview Scheduled">Interview Scheduled</option>
+                 <option value="Interview Completed">Interview Completed</option>
+                 <option value="Offer Extended">Offer Extended</option>
+                 <option value="Offer Accepted">Offer Accepted</option>
                  <option value="Hired">Hired</option>
-                 <option value="Not Interested">Not Interested</option>
+                 <optgroup label="Exit Statuses">
+                   <option value="No Response">No Response</option>
+                   <option value="No Show">No Show</option>
+                   <option value="Not Qualified">Not Qualified</option>
+                   <option value="Declined Offer">Declined Offer</option>
+                   <option value="Withdrew Application">Withdrew Application</option>
+                   <option value="Took Another Job">Took Another Job</option>
+                 </optgroup>
                </select>
             </div>
           </div>
@@ -2464,7 +2496,18 @@
 
             const type = getFormType(sub);
             if (type === 'careers') {
-                if (applicantStatusFilter && (sub.applicantStatus || 'New') !== applicantStatusFilter) return;
+                // Position filter
+                const posFilterEl = document.getElementById('applicant-position-filter');
+                const posFilterVal = posFilterEl ? posFilterEl.value : '';
+                if (posFilterVal) {
+                  const af = sub.fields || {};
+                  const apos = sub.position || af['Position Applying For'] || sub['wpforms[fields][7]'] || '';
+                  if (apos !== posFilterVal) return;
+                }
+                // Status filter (normalize legacy statuses)
+                const legacyMap = {'New':'Applied','Interested':'Contact Made','Interviewing':'Interview Scheduled','Not Interested':'Not Qualified'};
+                const normStatus = legacyMap[sub.applicantStatus] || sub.applicantStatus || 'Applied';
+                if (applicantStatusFilter && normStatus !== applicantStatusFilter) return;
                 applicants.push(sub);
             } else {
                  if (typeFilter && type !== typeFilter) return;
@@ -2583,36 +2626,74 @@
       };
 
       function renderApplicants(applicants, container) {
-          // Define Statuses and Colors
-          const statusConfig = {
-            'New': { class: 'bg-secondary', label: 'New' },
-            'Interviewing': { class: 'bg-warning text-dark', label: 'Interviewing' },
-            'Interested': { class: 'bg-success', label: 'Interested' },
-            'Hired': { class: 'bg-primary', label: 'Hired' },
-            'Not Interested': { class: 'bg-danger', label: 'Not Interested' }
+          // Legacy status mapping (old → new)
+          const legacyStatusMap = {
+            'New': 'Applied',
+            'Interested': 'Contact Made',
+            'Interviewing': 'Interview Scheduled',
+            'Not Interested': 'Not Qualified'
           };
-          const orderedStatuses = ['New', 'Interviewing', 'Interested', 'Hired', 'Not Interested'];
+          function normalizeStatus(sub) {
+            const raw = sub.applicantStatus || 'Applied';
+            return legacyStatusMap[raw] || raw;
+          }
 
-          // 1. Render Filter Bar
+          // Pipeline Stages & Exit Statuses
+          const statusConfig = {
+            'Applied': { class: 'bg-info text-dark', label: 'Applied', type: 'pipeline' },
+            'Contact Attempted': { class: 'bg-secondary', label: 'Contact Attempted', type: 'pipeline' },
+            'Contact Made': { class: 'bg-primary', label: 'Contact Made', type: 'pipeline' },
+            'Interview Scheduled': { class: 'bg-warning text-dark', label: 'Interview Scheduled', type: 'pipeline' },
+            'Interview Completed': { class: 'bg-info', label: 'Interview Completed', type: 'pipeline' },
+            'Offer Extended': { class: 'bg-purple text-white', label: 'Offer Extended', type: 'pipeline' },
+            'Offer Accepted': { class: 'bg-success', label: 'Offer Accepted', type: 'pipeline' },
+            'Hired': { class: 'bg-success', label: 'Hired', type: 'pipeline' },
+            'No Response': { class: 'bg-danger', label: 'No Response', type: 'exit' },
+            'No Show': { class: 'bg-danger', label: 'No Show', type: 'exit' },
+            'Not Qualified': { class: 'bg-dark', label: 'Not Qualified', type: 'exit' },
+            'Declined Offer': { class: 'bg-danger', label: 'Declined Offer', type: 'exit' },
+            'Withdrew Application': { class: 'bg-warning text-dark', label: 'Withdrew Application', type: 'exit' },
+            'Took Another Job': { class: 'bg-secondary', label: 'Took Another Job', type: 'exit' }
+          };
+          const pipelineStatuses = ['Applied', 'Contact Attempted', 'Contact Made', 'Interview Scheduled', 'Interview Completed', 'Offer Extended', 'Offer Accepted', 'Hired'];
+          const exitStatuses = ['No Response', 'No Show', 'Not Qualified', 'Declined Offer', 'Withdrew Application', 'Took Another Job'];
+          const orderedStatuses = [...pipelineStatuses, ...exitStatuses];
+
+          // 1. Render Pipeline Stage Filter Bar
           let html = `
             <div class="d-flex flex-wrap gap-2 mb-4 pb-3 border-bottom">
               <button class="btn btn-sm ${window.currentApplicantFilter === 'All' ? 'btn-dark' : 'btn-outline-dark'}" 
                       onclick="setApplicantFilter('All')">
-                All Applicants
+                All
               </button>
-              ${orderedStatuses.map(status => `
+              ${pipelineStatuses.map(status => `
                 <button class="btn btn-sm ${window.currentApplicantFilter === status ? 'btn-primary' : 'btn-outline-secondary'}" 
                         onclick="setApplicantFilter('${status}')">
                   ${status}
                 </button>
               `).join('')}
+              <button class="btn btn-sm ${exitStatuses.includes(window.currentApplicantFilter) || window.currentApplicantFilter === 'Exited' ? 'btn-danger' : 'btn-outline-danger'}" 
+                      onclick="setApplicantFilter('Exited')">
+                Exited
+              </button>
             </div>
           `;
 
-          // 2. Filter Data
+          // 2. Filter Data (status + position)
           let filtered = applicants;
-          if (window.currentApplicantFilter !== 'All') {
-            filtered = applicants.filter(sub => (sub.applicantStatus || 'New') === window.currentApplicantFilter);
+          const posFilter = document.getElementById('applicant-position-filter');
+          const posValue = posFilter ? posFilter.value : '';
+          if (posValue) {
+            filtered = filtered.filter(sub => {
+              const f = sub.fields || {};
+              const pos = sub.position || f['Position Applying For'] || sub['wpforms[fields][7]'] || '';
+              return pos === posValue;
+            });
+          }
+          if (window.currentApplicantFilter === 'Exited') {
+            filtered = filtered.filter(sub => exitStatuses.includes(normalizeStatus(sub)));
+          } else if (window.currentApplicantFilter !== 'All') {
+            filtered = filtered.filter(sub => normalizeStatus(sub) === window.currentApplicantFilter);
           }
 
           if (filtered.length === 0) {
@@ -2626,25 +2707,43 @@
               return;
           }
 
-          // 3. Group Data
+          // 3. Group Data + Calculate Metrics
           const groups = {};
           orderedStatuses.forEach(s => groups[s] = []);
           
           filtered.forEach(sub => {
-            const status = sub.applicantStatus || 'New';
+            const status = normalizeStatus(sub);
             if (groups[status]) {
               groups[status].push(sub);
             } else {
-              // Handle unknown statuses by putting them in New or a generic bin
-              if (!groups['New']) groups['New'] = []; // Should exist
-              groups['New'].push(sub);
+              groups['Applied'] = groups['Applied'] || [];
+              groups['Applied'].push(sub);
             }
           });
 
+          // Pipeline metrics (calculated from ALL applicants, ignoring filters)
+          const allNorm = applicants.map(s => normalizeStatus(s));
+          const mTotal = applicants.length;
+          const mContactAttempted = allNorm.filter(s => s !== 'Applied').length;
+          const mContactMade = allNorm.filter(s => !['Applied','Contact Attempted','No Response'].includes(s)).length;
+          const mIntScheduled = allNorm.filter(s => ['Interview Scheduled','Interview Completed','Offer Extended','Offer Accepted','Hired','No Show'].includes(s)).length;
+          const mIntCompleted = allNorm.filter(s => ['Interview Completed','Offer Extended','Offer Accepted','Hired'].includes(s)).length;
+          const mOfferExt = allNorm.filter(s => ['Offer Extended','Offer Accepted','Hired','Declined Offer'].includes(s)).length;
+          const mOfferAcc = allNorm.filter(s => ['Offer Accepted','Hired'].includes(s)).length;
+          const mHired = allNorm.filter(s => s === 'Hired').length;
+          const pct = (n, d) => d > 0 ? Math.round((n / d) * 100) + '%' : '0%';
+          const mel = id => document.getElementById(id);
+          if (mel('metric-applied')) mel('metric-applied').textContent = mTotal;
+          if (mel('metric-hired')) mel('metric-hired').textContent = mHired;
+          if (mel('metric-interview-rate')) mel('metric-interview-rate').textContent = pct(mIntCompleted, mIntScheduled);
+          if (mel('metric-offer-rate')) mel('metric-offer-rate').textContent = pct(mOfferAcc, mOfferExt);
+          if (mel('metric-conversion')) mel('metric-conversion').textContent = pct(mHired, mTotal);
+          if (mel('metric-contact-rate')) mel('metric-contact-rate').textContent = pct(mContactMade, mContactAttempted);
+
           // 4. Render Groups
           const renderCard = (sub) => {
-              const status = sub.applicantStatus || 'New';
-              const config = statusConfig[status] || statusConfig['New'];
+              const status = normalizeStatus(sub);
+              const config = statusConfig[status] || statusConfig['Applied'];
               const statusClass = config.class;
 
               const date = getSubmissionDate(sub);
@@ -2657,6 +2756,7 @@
               const firstName = sub.first_name || f.First || f['First Name'] || sub['wpforms[fields][1][first]'] || '';
               const lastName = sub.last_name || f.Last || f['Last Name'] || sub['wpforms[fields][1][last]'] || '';
               const name = sub.name || (firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || 'Unknown Candidate'));
+              const position = sub.position || f['Position Applying For'] || sub['wpforms[fields][7]'] || '';
               
               const email = sub.email || f.Email || '';
               const phone = sub.phone || f.Phone || '';
@@ -2670,6 +2770,7 @@
                     <span class="submission-type careers">Applicant</span>
                     <h5 style="margin: 0 0 0 10px; font-size: 18px;">${escapeHtml(name)}</h5>
                     <span class="badge ${statusClass} ms-2">${status}</span>
+                    ${position ? `<span class="badge bg-light text-dark border ms-2"><i class="fas fa-briefcase me-1"></i>${escapeHtml(position)}</span>` : ''}
                   </div>
                   <div class="submission-meta">
                     ${dateStr}
@@ -2715,8 +2816,14 @@
                             ${status}
                           </button>
                           <ul class="dropdown-menu">
-                            ${orderedStatuses.map(s => `
-                              <li><a class="dropdown-item" href="#" onclick="updateApplicantStatus('${sub.id}', '${s}')">${s}</a></li>
+                            <li><h6 class="dropdown-header">Pipeline Stages</h6></li>
+                            ${pipelineStatuses.map(s => `
+                              <li><a class="dropdown-item${status === s ? ' active' : ''}" href="#" onclick="updateApplicantStatus('${sub.id}', '${s}')">${s}</a></li>
+                            `).join('')}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Exit Statuses</h6></li>
+                            ${exitStatuses.map(s => `
+                              <li><a class="dropdown-item text-danger${status === s ? ' active' : ''}" href="#" onclick="updateApplicantStatus('${sub.id}', '${s}')">${s}</a></li>
                             `).join('')}
                           </ul>
                       </div>
