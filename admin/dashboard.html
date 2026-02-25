@@ -2258,6 +2258,19 @@
               mergeSessionData(sub);
               allSubmissions.push(sub);
             });
+            // DEBUG: Log analytics data for first 3 submissions
+            allSubmissions.slice(0, 3).forEach((sub, i) => {
+              console.log(`[DEBUG] Sub ${i} (${sub.id}):`, {
+                topLevel_userAgent: sub.userAgent,
+                topLevel_platform: sub.platform,
+                topLevel_screen: sub.screen,
+                topLevel_ip: sub.ip,
+                topLevel_analytics_city: sub.analytics_city,
+                nested_analytics: sub.analytics,
+                fields: sub.fields ? Object.keys(sub.fields) : 'no fields',
+                parseResult: parseDeviceInfo(sub)
+              });
+            });
             
             // Sort by timestamp/date descending (client-side)
             allSubmissions.sort((a, b) => {
