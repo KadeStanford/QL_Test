@@ -28,6 +28,7 @@ const AVAILABLE_FIELDS = [
   'Invoice #',
   'Tire Size',
   'Part Number',
+  'Vendor Part Number',
   'Vendor',
   'Bin/Location',
   'Copies to be Printed'
