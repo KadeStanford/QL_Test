@@ -1312,9 +1312,8 @@ const LabelSystem = {
 
         // Try to get print queue info
         try {
-          const token = localStorage.getItem('authToken') || '';
           const jobsResp = await fetch(serverUrl + '/api/print/jobs?status=pending', {
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers: { 'X-Print-Key': 'QL-print-2026-a7f3b9c1d4e8' }
           });
           if (jobsResp.ok) {
             const jobs = await jobsResp.json();
@@ -1333,9 +1332,8 @@ const LabelSystem = {
 
         // Try to get printers
         try {
-          const token = localStorage.getItem('authToken') || '';
           const printersResp = await fetch(serverUrl + '/api/print/printers', {
-            headers: { 'Authorization': 'Bearer ' + token }
+            headers: { 'X-Print-Key': 'QL-print-2026-a7f3b9c1d4e8' }
           });
           if (printersResp.ok) {
             const printers = await printersResp.json();
@@ -1431,12 +1429,11 @@ const LabelSystem = {
 
       // ---- REAL MODE: Send to print client ----
       const base64Pdf = this.uint8ArrayToBase64(pdfBytes);
-      const token = localStorage.getItem('authToken') || '';
       const response = await fetch(serverUrl + '/api/print/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
+          'X-Print-Key': 'QL-print-2026-a7f3b9c1d4e8'
         },
         body: JSON.stringify({
           templateName: template.labelName,
