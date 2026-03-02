@@ -1378,15 +1378,27 @@ const LabelSystem = {
       }
     } catch (err) {
       bar.classList.add('disconnected');
-      statusEl.textContent = 'Print Server: Disconnected';
       this.printClientConnected = false;
       jobsEl.textContent = '';
-      printersEl.textContent = err.message || '';
       this.printClientPrinters = [];
 
-      if (this.testMode) {
-        this.addTestLog('error', 'Cannot reach print server at ' + printClientUrl + ' — ' + (err.message || err));
-        this.addTestLog('info', 'Check that the server is running and your JWT token is valid.');
+      // Detect CORS / network failures (fetch throws TypeError on CORS block or network error)
+      const isCors = err instanceof TypeError && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'));
+      if (isCors) {
+        statusEl.textContent = 'Print Server: CORS Blocked';
+        printersEl.textContent = 'Server must allow this origin — update server CORS config';
+        if (this.testMode) {
+          this.addTestLog('error', 'CORS error — the server at ' + printClientUrl + ' is rejecting requests from ' + window.location.origin);
+          this.addTestLog('info', 'The server needs to add "' + window.location.origin + '" to its allowed CORS origins.');
+          this.addTestLog('info', 'Pull the latest Inspectionapp code on the shop server and restart.');
+        }
+      } else {
+        statusEl.textContent = 'Print Server: Disconnected';
+        printersEl.textContent = err.message || '';
+        if (this.testMode) {
+          this.addTestLog('error', 'Cannot reach print server at ' + printClientUrl + ' — ' + (err.message || err));
+          this.addTestLog('info', 'Check that the server is running and your JWT token is valid.');
+        }
       }
     }
   },
