@@ -1269,15 +1269,23 @@ const LabelSystem = {
   // ============================================================
   // PRINT CLIENT INTEGRATION
   // ============================================================
+  getPrintClientUrl() {
+    const saved = localStorage.getItem('labelSettings');
+    if (saved) {
+      try { return JSON.parse(saved).printServerUrl || 'https://autoflopro.com/print'; } catch (e) {}
+    }
+    return 'https://autoflopro.com/print';
+  },
+
   async testPrintClientConnection() {
     const bar = document.getElementById('printClientBar');
     const statusEl = document.getElementById('printClientStatus');
     const jobsEl = document.getElementById('printClientJobs');
     const printersEl = document.getElementById('printClientPrinters');
 
-    const serverUrl = (localStorage.getItem('labelSettings') && JSON.parse(localStorage.getItem('labelSettings')).printServerUrl) || 'https://api.autoflopro.com';
+    const printClientUrl = this.getPrintClientUrl();
 
-    // Skip network request entirely on localhost — server rejects CORS from local origins
+    // Skip network request entirely on localhost — CORS blocks it
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (isLocalhost) {
       bar.classList.add('disconnected');
@@ -1287,71 +1295,43 @@ const LabelSystem = {
       this.printClientConnected = false;
       this.printClientPrinters = [];
       if (this.testMode) {
-        this.addTestLog('warn', 'Skipped print server connection — localhost is blocked by CORS on ' + serverUrl);
-        this.addTestLog('info', '"Print Label" (PDF) works normally. "Send to Print Client" requires deployment to an allowed domain.');
+        this.addTestLog('warn', 'Skipped print client connection — localhost blocked by CORS');
+        this.addTestLog('info', '"Print Label" (PDF) works. "Send to Print Client" requires deployment.');
       }
       return;
     }
 
     if (this.testMode) {
-      this.addTestLog('info', 'Testing connection to print server: ' + serverUrl);
+      this.addTestLog('info', 'Testing direct connection to print client: ' + printClientUrl);
     }
 
     try {
       statusEl.textContent = 'Print Client: Connecting...';
-      const response = await fetch(serverUrl + '/api/health', { method: 'GET', mode: 'cors' });
 
-      if (response.ok) {
+      // Fetch printers directly from the print client
+      const printersResp = await fetch(printClientUrl + '/printers', { method: 'GET', mode: 'cors' });
+
+      if (printersResp.ok) {
+        const printers = await printersResp.json();
+        this.printClientPrinters = Array.isArray(printers) ? printers : [];
+
         bar.classList.remove('disconnected');
         if (!this.testMode) bar.classList.remove('test-mode');
-        statusEl.textContent = 'Print Client: Connected';
+        statusEl.textContent = 'Print Client: Connected (direct)';
         this.printClientConnected = true;
+        jobsEl.textContent = '';  // No job queue in direct mode
+        printersEl.textContent = 'Printers: ' + this.printClientPrinters.length + ' detected';
 
         if (this.testMode) {
-          this.addTestLog('success', 'Print server is REACHABLE at ' + serverUrl);
-        }
-
-        // Try to get print queue info
-        try {
-          const jobsResp = await fetch(serverUrl + '/api/print/jobs?status=pending');
-          if (jobsResp.ok) {
-            const jobs = await jobsResp.json();
-            const pending = Array.isArray(jobs) ? jobs.filter(j => j.status === 'pending').length : 0;
-            jobsEl.textContent = 'Jobs: ' + pending + ' pending';
-            if (this.testMode) {
-              this.addTestLog('info', 'Print queue accessible — ' + pending + ' pending job(s)');
-            }
-          }
-        } catch (e) {
-          jobsEl.textContent = '';
-          if (this.testMode) {
-            this.addTestLog('warn', 'Print queue endpoint not available (may require on-site access)');
-          }
-        }
-
-        // Try to get printers
-        try {
-          const printersResp = await fetch(serverUrl + '/api/print/printers');
-          if (printersResp.ok) {
-            const printers = await printersResp.json();
-            this.printClientPrinters = Array.isArray(printers) ? printers : [];
-            printersEl.textContent = 'Printers: ' + this.printClientPrinters.length + ' detected';
-            if (this.testMode) {
-              this.addTestLog('success', 'Discovered ' + this.printClientPrinters.length + ' printer(s): ' + this.printClientPrinters.map(p => p.name + ' (' + (p.status || 'Unknown') + ')').join(', '));
-            }
-          }
-        } catch (e) {
-          this.printClientPrinters = [];
-          printersEl.textContent = 'Printers: none detected';
-          if (this.testMode) {
-            this.addTestLog('warn', 'Printer list endpoint not reachable — no printers available');
-          }
+          this.addTestLog('success', 'Print client REACHABLE at ' + printClientUrl);
+          this.addTestLog('success', 'Discovered ' + this.printClientPrinters.length + ' printer(s): ' +
+            this.printClientPrinters.map(p => p.name + ' (' + (p.status || 'Unknown') + ')').join(', '));
         }
 
         // Re-apply test-mode class if active
         if (this.testMode) bar.classList.add('test-mode');
       } else {
-        throw new Error('Server returned ' + response.status);
+        throw new Error('Print client returned ' + printersResp.status);
       }
     } catch (err) {
       bar.classList.add('disconnected');
@@ -1362,8 +1342,8 @@ const LabelSystem = {
       this.printClientPrinters = [];
 
       if (this.testMode) {
-        this.addTestLog('error', 'Cannot reach print server at ' + serverUrl + ' — ' + (err.message || err));
-        this.addTestLog('info', 'No printers available. Check that the print server is running.');
+        this.addTestLog('error', 'Cannot reach print client at ' + printClientUrl + ' — ' + (err.message || err));
+        this.addTestLog('info', 'No printers available. Check that the print client is running.');
       }
     }
   },
@@ -1404,7 +1384,7 @@ const LabelSystem = {
 
     const printer = document.getElementById('print-printer-select').value;
     const copies = parseInt(document.getElementById('print-copies').value) || 1;
-    const serverUrl = (localStorage.getItem('labelSettings') && JSON.parse(localStorage.getItem('labelSettings')).printServerUrl) || 'https://api.autoflopro.com';
+    const printClientUrl = this.getPrintClientUrl();
 
     try {
       // Generate PDF bytes
@@ -1415,7 +1395,7 @@ const LabelSystem = {
         this.addTestLog('success', 'PRINT CLIENT REQUEST INTERCEPTED — Would send to printer: "' + printer + '"');
         this.addTestLog('info', 'Template: "' + template.labelName + '" | Copies: ' + copies + ' | Paper: ' + template.paperSize);
         this.addTestLog('info', 'PDF size: ' + (pdfBytes.length / 1024).toFixed(1) + ' KB (' + copies + ' page(s))');
-        this.addTestLog('info', 'Target server: ' + serverUrl + '/api/print/jobs');
+        this.addTestLog('info', 'Target: ' + printClientUrl + '/print-label  (DIRECT to print client)');
         const fieldSummary = Object.entries(this.creatorLabelData).filter(([k,v]) => v).map(([k,v]) => k + '="' + v + '"').join(', ');
         this.addTestLog('info', 'Payload: { printer: "' + printer + '", copies: ' + copies + ', data: {' + fieldSummary + '} }');
         this.addTestLog('warn', 'Printer "' + printer + '" did NOT receive this job (test mode). Opening PDF preview...');
@@ -1424,29 +1404,31 @@ const LabelSystem = {
         return;
       }
 
-      // ---- REAL MODE: Send to print client ----
+      // ---- REAL MODE: Send directly to print client (no middleman) ----
       const base64Pdf = this.uint8ArrayToBase64(pdfBytes);
-      const response = await fetch(serverUrl + '/api/print/jobs', {
+      const response = await fetch(printClientUrl + '/print-label', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
         body: JSON.stringify({
           templateName: template.labelName,
           printer: printer,
           copies: copies,
-          pdfData: base64Pdf,
-          labelData: this.creatorLabelData,
-          paperSize: template.paperSize
+          pdfData: base64Pdf
         })
       });
 
       if (response.ok) {
+        const result = await response.json();
         bootstrap.Modal.getInstance(document.getElementById('labelPrintModal')).hide();
-        alert('Print job sent to ' + printer + '!');
+        alert('Printed "' + template.labelName + '" on ' + (result.printer || printer) + '!');
       } else {
-        console.warn('Print queue returned ' + response.status + ', opening PDF for manual print');
+        const errData = await response.json().catch(() => null);
+        const errMsg = errData && errData.error ? errData.error : 'HTTP ' + response.status;
+        console.warn('Print client returned error:', errMsg);
         LabelPdfGenerator.openPdfInNewTab(pdfBytes);
         bootstrap.Modal.getInstance(document.getElementById('labelPrintModal')).hide();
-        alert('Print queue unavailable. PDF opened in new tab for printing.');
+        alert('Print failed: ' + errMsg + '\nPDF opened in new tab for manual printing.');
       }
     } catch (err) {
       console.error('Send to print client failed:', err);
@@ -1454,7 +1436,7 @@ const LabelSystem = {
         const pdfBytes = await LabelPdfGenerator.generateLabelPdf(template, this.creatorLabelData, copies);
         LabelPdfGenerator.openPdfInNewTab(pdfBytes);
         bootstrap.Modal.getInstance(document.getElementById('labelPrintModal')).hide();
-        alert('Print queue unavailable. PDF opened in new tab for printing.');
+        alert('Print client unreachable. PDF opened in new tab for printing.');
       } catch (e) {
         alert('Failed to generate PDF: ' + (e.message || e));
       }
@@ -1499,7 +1481,7 @@ const LabelSystem = {
         const autoSaveEl = document.getElementById('label-auto-save');
         if (copiesEl) copiesEl.value = settings.defaultCopies || 1;
         if (paperEl) paperEl.value = settings.defaultPaperSize || 'Brother-QL800';
-        if (serverEl) serverEl.value = settings.printServerUrl || 'https://api.autoflopro.com';
+        if (serverEl) serverEl.value = settings.printServerUrl || 'https://autoflopro.com/print';
         if (autoSaveEl) autoSaveEl.checked = settings.autoSaveEnabled !== false;
       } catch (e) {
         console.error('Error loading label settings:', e);
@@ -1511,7 +1493,7 @@ const LabelSystem = {
     const settings = {
       defaultCopies: parseInt(document.getElementById('label-default-copies').value) || 1,
       defaultPaperSize: document.getElementById('label-default-paper').value,
-      printServerUrl: document.getElementById('label-print-server').value || 'https://api.autoflopro.com',
+      printServerUrl: document.getElementById('label-print-server').value || 'https://autoflopro.com/print',
       autoSaveEnabled: document.getElementById('label-auto-save').checked
     };
     localStorage.setItem('labelSettings', JSON.stringify(settings));
