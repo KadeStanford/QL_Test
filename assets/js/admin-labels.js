@@ -1313,7 +1313,7 @@ const LabelSystem = {
         // Try to get print queue info
         try {
           const token = localStorage.getItem('authToken') || '';
-          const jobsResp = await fetch(serverUrl + '/api/labels/print-queue', {
+          const jobsResp = await fetch(serverUrl + '/api/print/jobs?status=pending', {
             headers: { 'Authorization': 'Bearer ' + token }
           });
           if (jobsResp.ok) {
@@ -1334,7 +1334,7 @@ const LabelSystem = {
         // Try to get printers
         try {
           const token = localStorage.getItem('authToken') || '';
-          const printersResp = await fetch(serverUrl + '/api/printers', {
+          const printersResp = await fetch(serverUrl + '/api/print/printers', {
             headers: { 'Authorization': 'Bearer ' + token }
           });
           if (printersResp.ok) {
@@ -1420,7 +1420,7 @@ const LabelSystem = {
         this.addTestLog('success', 'PRINT CLIENT REQUEST INTERCEPTED — Would send to printer: "' + printer + '"');
         this.addTestLog('info', 'Template: "' + template.labelName + '" | Copies: ' + copies + ' | Paper: ' + template.paperSize);
         this.addTestLog('info', 'PDF size: ' + (pdfBytes.length / 1024).toFixed(1) + ' KB (' + copies + ' page(s))');
-        this.addTestLog('info', 'Target server: ' + serverUrl + '/api/labels/print');
+        this.addTestLog('info', 'Target server: ' + serverUrl + '/api/print/jobs');
         const fieldSummary = Object.entries(this.creatorLabelData).filter(([k,v]) => v).map(([k,v]) => k + '="' + v + '"').join(', ');
         this.addTestLog('info', 'Payload: { printer: "' + printer + '", copies: ' + copies + ', data: {' + fieldSummary + '} }');
         this.addTestLog('warn', 'Printer "' + printer + '" did NOT receive this job (test mode). Opening PDF preview...');
@@ -1432,7 +1432,7 @@ const LabelSystem = {
       // ---- REAL MODE: Send to print client ----
       const base64Pdf = this.uint8ArrayToBase64(pdfBytes);
       const token = localStorage.getItem('authToken') || '';
-      const response = await fetch(serverUrl + '/api/labels/print', {
+      const response = await fetch(serverUrl + '/api/print/jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
