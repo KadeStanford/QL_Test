@@ -1273,23 +1273,24 @@ const LabelSystem = {
   getPrintClientUrl() {
     const saved = localStorage.getItem('labelSettings');
     if (saved) {
-      try { return JSON.parse(saved).printServerUrl || 'https://api.autoflopro.com'; } catch (e) {}
+      try { return JSON.parse(saved).printServerUrl || 'https://us-central1-qualityexpress-c19f2.cloudfunctions.net/printApi'; } catch (e) {}
     }
-    return 'https://api.autoflopro.com';
+    return 'https://us-central1-qualityexpress-c19f2.cloudfunctions.net/printApi';
   },
 
   getPrintClientToken() {
     const saved = localStorage.getItem('labelSettings');
     if (saved) {
-      try { return JSON.parse(saved).printClientToken || ''; } catch (e) {}
+      try { return JSON.parse(saved).printClientToken || 'ql-print-2024'; } catch (e) {}
     }
-    return '';
+    return 'ql-print-2024';
   },
 
   getPrintClientHeaders(includeContentType) {
     const headers = {};
     const token = this.getPrintClientToken();
     if (token) {
+      headers['X-API-Key'] = token;
       headers['Authorization'] = 'Bearer ' + token;
     }
     if (includeContentType) {
@@ -1308,14 +1309,14 @@ const LabelSystem = {
 
     if (!this.getPrintClientToken()) {
       bar.classList.add('disconnected');
-      statusEl.textContent = 'Print Server: No JWT token configured';
+      statusEl.textContent = 'Print Server: No API key configured';
       jobsEl.textContent = '';
-      printersEl.textContent = 'Set a JWT token in Label Settings to connect';
+      printersEl.textContent = 'Set an API key in Label Settings to connect';
       this.printClientConnected = false;
       this.printClientPrinters = [];
       if (this.testMode) {
-        this.addTestLog('warn', 'No JWT token set — cannot authenticate with print server');
-        this.addTestLog('info', 'Go to Label Settings and paste your JWT token, then save.');
+        this.addTestLog('warn', 'No API key set — cannot authenticate with print server');
+        this.addTestLog('info', 'Go to Label Settings and enter your API key, then save.');
       }
       return;
     }
@@ -1336,7 +1337,7 @@ const LabelSystem = {
 
       if (!healthResp.ok) {
         const code = healthResp.status;
-        throw new Error(code === 401 ? 'Authentication failed — check your JWT token' : 'Health check returned HTTP ' + code);
+        throw new Error(code === 401 ? 'Authentication failed — check your API key' : 'Health check returned HTTP ' + code);
       }
 
       // Fetch registered printers from the print server
@@ -1397,7 +1398,7 @@ const LabelSystem = {
         printersEl.textContent = err.message || '';
         if (this.testMode) {
           this.addTestLog('error', 'Cannot reach print server at ' + printClientUrl + ' — ' + (err.message || err));
-          this.addTestLog('info', 'Check that the server is running and your JWT token is valid.');
+          this.addTestLog('info', 'Check that the server is running and your API key is valid.');
         }
       }
     }
@@ -1537,6 +1538,120 @@ const LabelSystem = {
   },
 
   // ============================================================
+  // LIVE DATA — Connected Clients, Live Logs, Auto-refresh
+  // ============================================================
+
+  _liveLogTimer: null,
+
+  async refreshClients() {
+    const listEl = document.getElementById('label-clients-list');
+    if (!listEl) return;
+    const printClientUrl = this.getPrintClientUrl();
+    try {
+      const resp = await fetch(printClientUrl + '/api/print/clients', {
+        method: 'GET',
+        mode: 'cors',
+        headers: this.getPrintClientHeaders(false)
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const clients = await resp.json();
+      const clientList = Array.isArray(clients) ? clients : (clients.clients || []);
+      if (clientList.length === 0) {
+        listEl.innerHTML = '<p class="text-muted">No print clients registered.</p>';
+        return;
+      }
+      listEl.innerHTML = clientList.map(c => {
+        const lastSeen = c.lastSeen ? new Date(c.lastSeen) : null;
+        const now = new Date();
+        const ageSec = lastSeen ? Math.floor((now - lastSeen) / 1000) : 9999;
+        const isOnline = ageSec < 120; // Consider online if seen within 2 min
+        const ageStr = lastSeen ? (ageSec < 60 ? ageSec + 's ago' : Math.floor(ageSec / 60) + 'm ago') : 'Unknown';
+        return '<div class="d-flex justify-content-between align-items-center py-2 border-bottom">' +
+          '<div>' +
+            '<strong>' + this.escHtml(c.name || c.clientId || 'Unknown') + '</strong>' +
+            '<br><small class="text-muted">ID: ' + this.escHtml(c.clientId || '') + '</small>' +
+            (c.printerCount ? '<br><small class="text-muted">' + c.printerCount + ' printer(s)</small>' : '') +
+          '</div>' +
+          '<div class="text-end">' +
+            '<span class="badge ' + (isOnline ? 'bg-success' : 'bg-danger') + '">' + (isOnline ? 'Online' : 'Offline') + '</span>' +
+            '<br><small class="text-muted">Last seen: ' + ageStr + '</small>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } catch (err) {
+      listEl.innerHTML = '<p class="text-muted">Failed to load clients: ' + (err.message || err) + '</p>';
+    }
+  },
+
+  async refreshLiveLogs() {
+    const logsEl = document.getElementById('label-live-logs');
+    if (!logsEl) return;
+    const printClientUrl = this.getPrintClientUrl();
+    try {
+      const resp = await fetch(printClientUrl + '/api/print/logs?limit=100', {
+        method: 'GET',
+        mode: 'cors',
+        headers: this.getPrintClientHeaders(false)
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const logs = data.logs || [];
+      if (logs.length === 0) {
+        logsEl.innerHTML = '<p class="text-muted">No logs yet. Start the Print Client and print a label.</p>';
+        return;
+      }
+      // Logs come newest-first, reverse for chronological display
+      const sorted = logs.slice().reverse();
+      logsEl.innerHTML = sorted.map(l => {
+        const ts = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '';
+        const levelColor = l.level === 'error' ? '#f87171' : (l.level === 'warn' ? '#fbbf24' : '#94a3b8');
+        const levelIcon = l.level === 'error' ? '&#x274C;' : (l.level === 'warn' ? '&#x26A0;&#xFE0F;' : '&#x2139;&#xFE0F;');
+        return '<div style="padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">' +
+          '<span style="color: #475569; margin-right: 8px;">' + ts + '</span>' +
+          '<span style="margin-right: 6px;">' + levelIcon + '</span>' +
+          '<span style="color: ' + levelColor + ';">' + this.escHtml(l.message || '') + '</span>' +
+          (l.clientId ? '<span style="color: #60a5fa; margin-left: 8px; font-size: 0.65rem;">(' + this.escHtml(l.clientId) + ')</span>' : '') +
+        '</div>';
+      }).join('');
+      logsEl.scrollTop = logsEl.scrollHeight;
+    } catch (err) {
+      logsEl.innerHTML = '<p class="text-muted">Failed to load logs: ' + (err.message || err) + '</p>';
+    }
+  },
+
+  async clearLiveLogs() {
+    const printClientUrl = this.getPrintClientUrl();
+    try {
+      await fetch(printClientUrl + '/api/print/logs', {
+        method: 'DELETE',
+        mode: 'cors',
+        headers: this.getPrintClientHeaders(false)
+      });
+      this.refreshLiveLogs();
+    } catch (err) {
+      console.error('Failed to clear logs:', err);
+    }
+  },
+
+  startLiveLogAutoRefresh() {
+    if (this._liveLogTimer) return;
+    this._liveLogTimer = setInterval(() => {
+      const toggle = document.getElementById('live-log-auto-refresh');
+      if (toggle && toggle.checked) {
+        this.refreshLiveLogs();
+        this.refreshClients();
+      }
+    }, 10000); // Refresh every 10 seconds
+  },
+
+  stopLiveLogAutoRefresh() {
+    if (this._liveLogTimer) {
+      clearInterval(this._liveLogTimer);
+      this._liveLogTimer = null;
+    }
+  },
+
+  // ============================================================
   // SETTINGS
   // ============================================================
   loadSettings() {
@@ -1551,16 +1666,16 @@ const LabelSystem = {
         const autoSaveEl = document.getElementById('label-auto-save');
         if (copiesEl) copiesEl.value = settings.defaultCopies || 1;
         if (paperEl) paperEl.value = settings.defaultPaperSize || 'Brother-QL800';
-        if (serverEl) serverEl.value = settings.printServerUrl || 'https://api.autoflopro.com';
-        if (tokenEl) tokenEl.value = settings.printClientToken || '';
+        if (serverEl) serverEl.value = settings.printServerUrl || 'https://us-central1-qualityexpress-c19f2.cloudfunctions.net/printApi';
+        if (tokenEl) tokenEl.value = settings.printClientToken || 'ql-print-2024';
         if (autoSaveEl) autoSaveEl.checked = settings.autoSaveEnabled !== false;
       } catch (e) {
         console.error('Error loading label settings:', e);
       }
     } else {
-      // First load — pre-fill default token
+      // First load — pre-fill default API key
       const tokenEl = document.getElementById('label-print-token');
-      if (tokenEl) tokenEl.value = '';
+      if (tokenEl) tokenEl.value = 'ql-print-2024';
     }
   },
 
@@ -1568,8 +1683,8 @@ const LabelSystem = {
     const settings = {
       defaultCopies: parseInt(document.getElementById('label-default-copies').value) || 1,
       defaultPaperSize: document.getElementById('label-default-paper').value,
-      printServerUrl: document.getElementById('label-print-server').value || 'https://api.autoflopro.com',
-      printClientToken: document.getElementById('label-print-token').value || '',
+      printServerUrl: document.getElementById('label-print-server').value || 'https://us-central1-qualityexpress-c19f2.cloudfunctions.net/printApi',
+      printClientToken: document.getElementById('label-print-token').value || 'ql-print-2024',
       autoSaveEnabled: document.getElementById('label-auto-save').checked
     };
     localStorage.setItem('labelSettings', JSON.stringify(settings));
@@ -1580,6 +1695,9 @@ const LabelSystem = {
     this.updateStats();
     this.renderRecentTemplates();
     this.refreshPrinters();
+    this.refreshClients();
+    this.refreshLiveLogs();
+    this.startLiveLogAutoRefresh();
   },
 
   updateStats() {
